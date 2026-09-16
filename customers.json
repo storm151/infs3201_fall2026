@@ -1,0 +1,52 @@
+[
+    {
+        "customerId": "C001",
+        "name": "Ahmed Al-Kuwari",
+        "phone": "5512-4837",
+        "email": "ahmed.alkuwari@example.com",
+        "area": "Al Waab",
+        "zone": "55",
+        "street": "123",
+        "building": "18"
+    },
+    {
+        "customerId": "C002",
+        "name": "Fatima Al-Marri",
+        "phone": "6634-2915",
+        "email": "fatima.almarri@example.com",
+        "area": "Al Rayyan",
+        "zone": "53",
+        "street": "742",
+        "building": "31"
+    },
+    {
+        "customerId": "C003",
+        "name": "Khalid Al-Mohannadi",
+        "phone": "7741-6302",
+        "email": "khalid.almohannadi@example.com",
+        "area": "Lusail",
+        "zone": "69",
+        "street": "211",
+        "building": "46"
+    },
+    {
+        "customerId": "C004",
+        "name": "Mariam Al-Sulaiti",
+        "phone": "5028-1746",
+        "email": "mariam.alsulaiti@example.com",
+        "area": "Al Sadd",
+        "zone": "38",
+        "street": "815",
+        "building": "27"
+    },
+    {
+        "customerId": "C005",
+        "name": "Mohammed Al-Hajri",
+        "phone": "3369-8251",
+        "email": "mohammed.alhajri@example.com",
+        "area": "Umm Salal",
+        "zone": "71",
+        "street": "406",
+        "building": "12"
+    }
+]

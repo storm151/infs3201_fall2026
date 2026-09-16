@@ -1,0 +1,32 @@
+[
+    {
+        "serviceId": "S001",
+        "name": "Wash and Fold",
+        "unit": "kg",
+        "price": 8
+    },
+    {
+        "serviceId": "S002",
+        "name": "Dry Cleaning - Shirt",
+        "unit": "item",
+        "price": 12
+    },
+    {
+        "serviceId": "S003",
+        "name": "Dry Cleaning - Trousers",
+        "unit": "item",
+        "price": 15
+    },
+    {
+        "serviceId": "S004",
+        "name": "Thobe Cleaning",
+        "unit": "item",
+        "price": 18
+    },
+    {
+        "serviceId": "S005",
+        "name": "Abaya Cleaning",
+        "unit": "item",
+        "price": 20
+    }
+]

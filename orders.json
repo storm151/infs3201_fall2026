@@ -1,0 +1,170 @@
+[
+    {
+        "orderId": "O001",
+        "customerId": "C001",
+        "orderDate": "2026-08-10",
+        "status": "Delivered",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 4
+            },
+            {
+                "serviceId": "S004",
+                "quantity": 2
+            }
+        ]
+    },
+    {
+        "orderId": "O002",
+        "customerId": "C002",
+        "orderDate": "2026-08-12",
+        "status": "Delivered",
+        "items": [
+            {
+                "serviceId": "S005",
+                "quantity": 3
+            }
+        ]
+    },
+    {
+        "orderId": "O003",
+        "customerId": "C003",
+        "orderDate": "2026-08-16",
+        "status": "Ready",
+        "items": [
+            {
+                "serviceId": "S002",
+                "quantity": 4
+            },
+            {
+                "serviceId": "S003",
+                "quantity": 2
+            }
+        ]
+    },
+    {
+        "orderId": "O004",
+        "customerId": "C001",
+        "orderDate": "2026-08-18",
+        "status": "Delivered",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 6
+            }
+        ]
+    },
+    {
+        "orderId": "O005",
+        "customerId": "C004",
+        "orderDate": "2026-08-19",
+        "status": "Ready",
+        "items": [
+            {
+                "serviceId": "S005",
+                "quantity": 2
+            },
+            {
+                "serviceId": "S002",
+                "quantity": 3
+            }
+        ]
+    },
+    {
+        "orderId": "O006",
+        "customerId": "C005",
+        "orderDate": "2026-08-20",
+        "status": "Washing",
+        "items": [
+            {
+                "serviceId": "S004",
+                "quantity": 5
+            },
+            {
+                "serviceId": "S003",
+                "quantity": 2
+            }
+        ]
+    },
+    {
+        "orderId": "O007",
+        "customerId": "C002",
+        "orderDate": "2026-08-21",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 3.5
+            },
+            {
+                "serviceId": "S005",
+                "quantity": 1
+            }
+        ]
+    },
+    {
+        "orderId": "O008",
+        "customerId": "C003",
+        "orderDate": "2026-08-22",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S004",
+                "quantity": 3
+            }
+        ]
+    },
+    {
+        "orderId": "O009",
+        "customerId": "C004",
+        "orderDate": "2026-08-23",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S002",
+                "quantity": 2
+            },
+            {
+                "serviceId": "S003",
+                "quantity": 2
+            },
+            {
+                "serviceId": "S005",
+                "quantity": 1
+            }
+        ]
+    },
+    {
+        "orderId": "O010",
+        "customerId": "C001",
+        "orderDate": "2026-08-24",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 7
+            },
+            {
+                "serviceId": "S004",
+                "quantity": 1
+            }
+        ]
+    },
+    {
+        "orderId": "O011",
+        "customerId": "C001",
+        "orderDate": "2026-09-16",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 2
+            },
+            {
+                "serviceId": "S002",
+                "quantity": 1
+            }
+        ]
+    }
+]
