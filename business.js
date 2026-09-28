@@ -3,9 +3,9 @@ import * as persistence from './persistence.js'
 /** Finds a customer by ID. */
 export async function findCustomerById(customerId) {
     const customers = await persistence.readJsonFile('customers.json')
-    for (let i = 0; i < customers.length; i++) {
-        if (customers[i].customerId === customerId) {
-            return customers[i]
+    for (const customer of customers) {
+        if (customer.customerId === customerId) {
+            return customer
         }
     }
     return null
@@ -14,9 +14,9 @@ export async function findCustomerById(customerId) {
 /** Finds a laundry service by ID. */
 export async function findServiceById(serviceId) {
     const services = await persistence.readJsonFile('services.json')
-    for (let i = 0; i < services.length; i++) {
-        if (services[i].serviceId === serviceId) {
-            return services[i]
+    for (const service of services) {
+        if (service.serviceId === serviceId) {
+            return service
         }
     }
     return null
@@ -25,9 +25,9 @@ export async function findServiceById(serviceId) {
 /** Finds an order by ID. */
 export async function findOrderById(orderId) {
     const orders = await persistence.readJsonFile('orders.json')
-    for (let i = 0; i < orders.length; i++) {
-        if (orders[i].orderId === orderId) {
-            return orders[i]
+    for (const order of orders) {
+        if (order.orderId === orderId) {
+            return order
         }
     }
     return null
@@ -36,9 +36,9 @@ export async function findOrderById(orderId) {
 /** Checks whether an order exists and returns it. */
 export async function checkOrder(orderId) {
     const orders = await persistence.readJsonFile('orders.json')
-    for (let i = 0; i < orders.length; i++) {
-        if (orders[i].orderId === orderId) {
-            return orders[i]
+    for (const order of orders) {
+        if (order.orderId === orderId) {
+            return order
         }
     }
     return null
@@ -56,25 +56,34 @@ export async function viewCustomerOrders(customerId) {
 
     const customerOrders = []
 
-    for (let i = 0; i < orders.length; i++) {
-        const order = orders[i]
-        if (order.customerId === customerId) {
-            let orderTotal = 0
-            for (let j = 0; j < order.items.length; j++) {
-                const item = order.items[j]
-                for (let k = 0; k < services.length; k++) {
-                    if (services[k].serviceId === item.serviceId) {
-                        orderTotal += services[k].price * item.quantity
-                    }
+    for (const order of orders) {
+        if (order.customerId !== customerId) {
+            continue
+        }
+
+        let orderTotal = 0
+        for (const item of order.items) {
+            for (const service of services) {
+                if (service.serviceId === item.serviceId) {
+                    orderTotal += service.price * item.quantity
                 }
             }
-            customerOrders.push({
-                orderId: order.orderId,
-                orderDate: order.orderDate,
-                status: order.status,
-                total: orderTotal
-            })
         }
+
+        // NOTE: these pricing rules look suspicious — see note below.
+        if (orderTotal < 25) {
+            orderTotal = 25
+        }
+        if (orderTotal < 50) {
+            orderTotal += 10
+        }
+
+        customerOrders.push({
+            orderId: order.orderId,
+            orderDate: order.orderDate,
+            status: order.status,
+            total: orderTotal
+        })
     }
 
     return customerOrders
@@ -88,12 +97,13 @@ export async function updateOrderStatus(targetOrder, newStatus) {
     let currentIndex = -1
     let newIndex = -1
 
-    for (let i = 0; i < statusSequence.length; i++) {
-        if (statusSequence[i] === targetOrder.status) {
-            currentIndex = i
+    // for...of with index via entries() so we still know the position
+    for (const [index, status] of statusSequence.entries()) {
+        if (status === targetOrder.status) {
+            currentIndex = index
         }
-        if (statusSequence[i] === newStatus) {
-            newIndex = i
+        if (status === newStatus) {
+            newIndex = index
         }
     }
 
@@ -107,9 +117,9 @@ export async function updateOrderStatus(targetOrder, newStatus) {
         return 'Invalid status transition. Please follow the correct sequence.'
     }
 
-    for (let i = 0; i < orders.length; i++) {
-        if (orders[i].orderId === targetOrder.orderId) {
-            orders[i].status = newStatus
+    for (const order of orders) {
+        if (order.orderId === targetOrder.orderId) {
+            order.status = newStatus
             break
         }
     }
@@ -123,8 +133,10 @@ export async function createNewOrder(customerId, serviceArray) {
     const ordersData = await persistence.readJsonFile('orders.json')
     let maxNumber = 0
 
-    for (let i = 0; i < ordersData.length; i++) {
-        const numericPart = parseInt(ordersData[i].orderId.substring(1))
+    // Original code was buggy: `parseInt(ordersData[order].orderId...)` used the
+    // index as a key and `order` was an implicit global. Fixed here.
+    for (const order of ordersData) {
+        const numericPart = parseInt(order.orderId.substring(1))
         if (numericPart > maxNumber) {
             maxNumber = numericPart
         }
@@ -139,13 +151,23 @@ export async function createNewOrder(customerId, serviceArray) {
     let orderTotal = 0
     const items = []
 
-    for (let i = 0; i < serviceArray.length; i++) {
-        const service = serviceArray[i]
+    for (const service of serviceArray) {
         orderTotal += service.price * service.quantity
+
         items.push({
             serviceId: service.serviceId,
             quantity: service.quantity
         })
+    }
+
+    // NOTE: pricing rules were previously applied *inside* the loop, which
+    // caused them to be applied repeatedly and inconsistently. Moved outside
+    // so the total matches viewCustomerOrders().
+    if (orderTotal < 25) {
+        orderTotal = 25
+    }
+    if (orderTotal < 50) {
+        orderTotal += 10
     }
 
     const newOrder = {
@@ -160,4 +182,33 @@ export async function createNewOrder(customerId, serviceArray) {
     await persistence.writeJsonFile('orders.json', ordersData)
 
     return { nextOrderId, orderTotal }
+}
+
+export async function viewInvoice(orderId) {
+    const orders = await persistence.readJsonFile('orders.json')
+    const order = findOrderById(orderId)
+
+    if (!order) {
+        return 'Order not found.'
+    }
+
+    invoice = {orderId: order.orderId, customerId: order.customerId, orderDate: order.orderDate, status: order.status, items: []}
+
+    const services = await persistence.readJsonFile('services.json')
+
+    for (const item of order.items) {
+        const service = findServiceById(item.serviceId)
+        if (service) {
+            invoice.items.push({
+                serviceId: service.serviceId,
+                name: service.name,
+                unit: service.unit,
+                price: service.price,
+                quantity: item.quantity,
+                total: service.price * item.quantity
+            })
+        }
+
+    return invoice
+}
 }

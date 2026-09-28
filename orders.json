@@ -75,7 +75,7 @@
         "orderId": "O006",
         "customerId": "C005",
         "orderDate": "2026-08-20",
-        "status": "Washing",
+        "status": "Ready",
         "items": [
             {
                 "serviceId": "S004",
@@ -176,6 +176,46 @@
             {
                 "serviceId": "S001",
                 "quantity": 2
+            }
+        ]
+    },
+    {
+        "orderId": "O013",
+        "customerId": "C001",
+        "orderDate": "2026-09-27",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 2
+            }
+        ]
+    },
+    {
+        "orderId": "O014",
+        "customerId": "C001",
+        "orderDate": "2026-09-27",
+        "status": "Washing",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 1
+            }
+        ]
+    },
+    {
+        "orderId": "O015",
+        "customerId": "C001",
+        "orderDate": "2026-09-27",
+        "status": "Received",
+        "items": [
+            {
+                "serviceId": "S001",
+                "quantity": 2
+            },
+            {
+                "serviceId": "S003",
+                "quantity": 4
             }
         ]
     }
