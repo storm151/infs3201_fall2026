@@ -105,15 +105,25 @@ async function createNewOrder() {
 
 async function viewInvoice() {
     const orderId = prompt('Enter order ID: ')
-    const invoice = await business.generateInvoice(orderId)
+    const invoice = await business.viewInvoice(orderId)
+    console.log(invoice)
 
     if (typeof invoice === 'string') {
         console.log(invoice)
     }
     else {
         console.log(`Order ID: ${invoice.orderId} Date: ${invoice.orderDate} Status: ${invoice.status}`)
-        console.log('customer ID: ' + invoice.customerId.name)
-        
+        console.log('customer: ' + invoice.customerName)
+        console.log('Service                     Qty     Price     Line Total')
+        console.log('-------------------------  -----  --------  -----------')
+        for (const item of invoice.items) {
+            const lineTotal = item.price * item.quantity
+            console.log(`${item.name.padEnd(25)}  ${item.quantity.toString().padStart(3)}  ${item.price.toFixed(2).padStart(8)}  ${lineTotal.toFixed(2).padStart(11)}`)
+        }
+        console.log('Service Subtotal: ' + invoice.servicesTotal.toFixed(2) + ' QAR')
+        console.log('Minimum Order adjustment: ' + invoice.minimumOrderFee.toFixed(2) + ' QAR')
+        console.log('delivery Fee: ' + invoice.deliveryFee.toFixed(2) + ' QAR')
+        console.log('Total Amount: ' + invoice.totalAmount.toFixed(2) + ' QAR')
     }
 }
 

@@ -184,31 +184,67 @@ export async function createNewOrder(customerId, serviceArray) {
     return { nextOrderId, orderTotal }
 }
 
+/* Generates invoice details including item breakdowns, fees, and grand total. */
 export async function viewInvoice(orderId) {
-    const orders = await persistence.readJsonFile('orders.json')
-    const order = findOrderById(orderId)
+    const order = await findOrderById(orderId)
 
     if (!order) {
         return 'Order not found.'
     }
 
-    invoice = {orderId: order.orderId, customerId: order.customerId, orderDate: order.orderDate, status: order.status, items: []}
+    let customer = await findCustomerById(order.customerId)
 
-    const services = await persistence.readJsonFile('services.json')
+    const invoice = {
+        orderId: order.orderId, 
+        customerName: customer.name,
+        orderDate: order.orderDate, 
+        status: order.status, 
+        items: [],
+        servicesTotal: 0,
+        minimumOrderFee: 0,
+        deliveryFee: 0,
+        totalAmount: 0
+    }
+
+    let servicesTotal = 0
 
     for (const item of order.items) {
-        const service = findServiceById(item.serviceId)
+        const service = await findServiceById(item.serviceId)
         if (service) {
+            const lineTotal = service.price * item.quantity
+            servicesTotal += lineTotal
+
             invoice.items.push({
                 serviceId: service.serviceId,
                 name: service.name,
                 unit: service.unit,
                 price: service.price,
                 quantity: item.quantity,
-                total: service.price * item.quantity
+                lineTotal: lineTotal
             })
         }
+    }
+
+    let minimumOrderFee = 0
+    if (servicesTotal < 25) {
+        minimumOrderFee = 25 - servicesTotal
+    } else {
+        minimumOrderFee = 0
+    }
+
+    let deliveryFee = 0
+    if (servicesTotal < 50) {
+        deliveryFee = 10
+    } else {
+        deliveryFee = 0
+    }
+
+    const totalAmount = servicesTotal + minimumOrderFee + deliveryFee
+
+    invoice.servicesTotal = servicesTotal
+    invoice.minimumOrderFee = minimumOrderFee
+    invoice.deliveryFee = deliveryFee
+    invoice.totalAmount = totalAmount
 
     return invoice
-}
 }
