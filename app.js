@@ -17,20 +17,18 @@ async function showLaundryServices() {
 /** Displays orders belonging to a customer. */
 async function viewCustomerOrders() {
     const customerId = prompt('Enter customer ID: ')
-    const customer = await business.findCustomerById(customerId)
+    const customerOrders = await business.viewCustomerOrders(customerId)
 
-    if (!customer) {
-        console.log('Customer not found.')
+    if (typeof customerOrders === 'string') {
+        console.log(customerOrders)
         return
     }
 
-    console.log(`Orders for ${customer.name}`)
+    console.log(`Orders for ${customerOrders.customerName}`)
     console.log('Order ID  Order Date    Status       Total')
     console.log('--------  ----------    ---------    --------')
 
-    const customerOrders = await business.viewCustomerOrders(customerId)
-
-    for (const order of customerOrders) {
+    for (const order of customerOrders.orders) {
         console.log(`${order.orderId.padEnd(8)}  ${order.orderDate.padEnd(10)}    ${order.status.padEnd(11)}  ${order.total.toFixed(2).padStart(8)}`)
     }
 }
@@ -103,28 +101,31 @@ async function createNewOrder() {
     console.log(`Total price: ${orderTotal.toFixed(2)} QAR`)
 }
 
+/** Displays a formatted invoice for an order. */
 async function viewInvoice() {
     const orderId = prompt('Enter order ID: ')
     const invoice = await business.viewInvoice(orderId)
-    console.log(invoice)
 
     if (typeof invoice === 'string') {
         console.log(invoice)
+        return
     }
-    else {
-        console.log(`Order ID: ${invoice.orderId} Date: ${invoice.orderDate} Status: ${invoice.status}`)
-        console.log('customer: ' + invoice.customerName)
-        console.log('Service                     Qty     Price     Line Total')
-        console.log('-------------------------  -----  --------  -----------')
-        for (const item of invoice.items) {
-            const lineTotal = item.price * item.quantity
-            console.log(`${item.name.padEnd(25)}  ${item.quantity.toString().padStart(3)}  ${item.price.toFixed(2).padStart(8)}  ${lineTotal.toFixed(2).padStart(11)}`)
-        }
-        console.log('Service Subtotal: ' + invoice.servicesTotal.toFixed(2) + ' QAR')
-        console.log('Minimum Order adjustment: ' + invoice.minimumOrderFee.toFixed(2) + ' QAR')
-        console.log('delivery Fee: ' + invoice.deliveryFee.toFixed(2) + ' QAR')
-        console.log('Total Amount: ' + invoice.totalAmount.toFixed(2) + ' QAR')
+
+    console.log(`Order: ${invoice.orderId}  Date: ${invoice.orderDate}  Status: ${invoice.status}`)
+    console.log(`Customer: ${invoice.customerName}`)
+    console.log('')
+    console.log('Service                    Qty      Price   Line Total')
+    console.log('-------------------------  -----  --------  -----------')
+
+    for (const item of invoice.items) {
+        console.log(`${item.name.padEnd(25)}  ${item.quantity.toString().padStart(3)}  ${item.price.toFixed(2).padStart(8)}  ${item.lineTotal.toFixed(2).padStart(11)}`)
     }
+
+    console.log('')
+    console.log(`Service subtotal:          ${invoice.servicesTotal.toFixed(2).padStart(8)}`)
+    console.log(`Minimum-order adjustment:  ${invoice.minimumOrderAdjustment.toFixed(2).padStart(8)}`)
+    console.log(`Delivery charge:           ${invoice.deliveryFee.toFixed(2).padStart(8)}`)
+    console.log(`Final total:               ${invoice.totalAmount.toFixed(2).padStart(8)} QAR`)
 }
 
 /** Runs the application's main menu. */
@@ -134,7 +135,7 @@ async function main() {
         console.log('2. View customer orders')
         console.log('3. Update order status')
         console.log('4. Create new order')
-        console.log('5. view invoice')
+        console.log('5. View invoice')
         console.log('6. Exit')
 
         const choice = prompt('What is your choice> ')
@@ -149,7 +150,6 @@ async function main() {
             await createNewOrder()
         } else if (choice === '5') {
             await viewInvoice()
-            break
         } else if (choice === '6') {
             console.log('Exiting...')
             break
