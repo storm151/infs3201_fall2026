@@ -107,7 +107,7 @@
         "orderId": "O008",
         "customerId": "C003",
         "orderDate": "2026-08-22",
-        "status": "Received",
+        "status": "Washing",
         "items": [
             {
                 "serviceId": "S004",
