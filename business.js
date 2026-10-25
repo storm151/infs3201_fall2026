@@ -1,219 +1,215 @@
 import * as persistence from './persistence.js'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 /**
- * Finds a customer by ID.
- * @param {string} customerId - The customer ID to search for.
- * @returns {Promise<object|null>} The customer object, or null if not found.
+ * Get all services
+ * @returns A list of Objects
  */
-export async function findCustomerById(customerId) {
-    return await persistence.findCustomer(customerId)
+export async function getServices() {
+    return await persistence.getAllServices()
 }
+export const getAllServices = getServices
 
 /**
- * Finds a laundry service by ID.
- * @param {string} serviceId - The service ID to search for.
- * @returns {Promise<object|null>} The service object, or null if not found.
+ * Get a single service by serviceId
  */
-export async function findServiceById(serviceId) {
-    return await persistence.findService(serviceId)
+export async function getService(serviceId) {
+    return await persistence.getServiceById(serviceId)
 }
+export const getServiceById = getService
 
 /**
- * Finds an order by ID.
- * @param {string} orderId - The order ID to search for.
- * @returns {Promise<object|null>} The order object, or null if not found.
+ * Get customer information and their associated orders
  */
-export async function findOrderById(orderId) {
-    return await persistence.findOrder(orderId)
-}
-
-/**
- * Checks whether an order exists and returns it.
- * @param {string} orderId - The order ID to search for.
- * @returns {Promise<object|null>} The order object, or null if not found.
- */
-export async function checkOrder(orderId) {
-    return await persistence.findOrder(orderId)
-}
-
-/**
- * Returns all available laundry services.
- * @returns {Promise<Array<object>>} The list of laundry services.
- */
-export async function showLaundryServices() {
-    return await persistence.findAllServices()
-}
-
-/**
- * Applies pricing rules to a list of items.
- * @param {Array<object>} items - The order items containing serviceId and quantity.
- * @returns {Promise<object>} An object with items, servicesTotal, minimumOrderAdjustment, deliveryFee, and totalAmount.
- */
-async function calculateTotals(items) {
-    const rates = persistence.getRates()
-    const detailedItems = []
-    let servicesTotal = 0
-
-    for (const item of items) {
-        const service = await persistence.findService(item.serviceId)
-        if (service) {
-            const lineTotal = service.price * item.quantity
-            servicesTotal += lineTotal
-            detailedItems.push({
-                serviceId: service.serviceId,
-                name: service.name,
-                unit: service.unit,
-                price: service.price,
-                quantity: item.quantity,
-                lineTotal: lineTotal
-            })
-        }
-    }
-
-    const minimumOrderAdjustment = servicesTotal < rates.MINIMUM_ORDER_CHARGE
-        ? rates.MINIMUM_ORDER_CHARGE - servicesTotal
-        : 0
-
-    const adjustedServiceCharge = servicesTotal + minimumOrderAdjustment
-
-    const deliveryFee = servicesTotal < rates.FREE_DELIVERY_THRESHOLD
-        ? rates.DELIVERY_CHARGE
-        : 0
-
-    const totalAmount = adjustedServiceCharge + deliveryFee
-
-    return {
-        items: detailedItems,
-        servicesTotal: servicesTotal,
-        minimumOrderAdjustment: minimumOrderAdjustment,
-        deliveryFee: deliveryFee,
-        totalAmount: totalAmount
-    }
-}
-
-/**
- * Returns a customer's orders with calculated totals.
- * @param {string} customerId - The customer ID whose orders should be returned.
- * @returns {Promise<object|string>} An object with customerName and orders, or an error message.
- */
-export async function viewCustomerOrders(customerId) {
-    const customer = await persistence.findCustomer(customerId)
+export async function getCustomerInformation(cid) {
+    let customer = await persistence.getCustomerById(cid)
     if (!customer) {
-        return 'Customer not found.'
+        return null
     }
-
-    const customerOrders = await persistence.findOrdersByCustomer(customerId)
-    const result = []
-
-    for (const order of customerOrders) {
-        const totals = await calculateTotals(order.items)
-        result.push({
-            orderId: order.orderId,
-            orderDate: order.orderDate,
-            status: order.status,
-            total: totals.totalAmount
-        })
+    let orders = await persistence.getOrdersByCustomerId(cid)
+    for (let ord of orders) {
+        ord.order = ord.orderId
+        ord.date = ord.orderDate
+        if (ord.total === undefined) {
+            ord.total = await computeOrderTotal(ord.items || [])
+        }
     }
+    customer.orders = orders
+    return customer
+}
+export const getCustomer = getCustomerInformation
 
-    return { customerName: customer.name, orders: result }
+/**
+ * Get a customer by customerId
+ */
+export async function getCustomerById(cid) {
+    return await persistence.getCustomerById(cid)
 }
 
 /**
- * Advances an order to a valid new status.
- * @param {object} targetOrder - The order to update.
- * @param {string} newStatus - The desired new status.
- * @returns {Promise<boolean|string>} True on success, or an error message.
+ * Get all customers
  */
-export async function updateOrderStatus(targetOrder, newStatus) {
-    const statusSequence = ['Received', 'Washing', 'Ready', 'Delivered']
-    let currentIndex = -1
-    let newIndex = -1
+export async function getAllCustomers() {
+    return await persistence.getAllCustomers()
+}
+export const getCustomers = getAllCustomers
 
-    for (const [index, status] of statusSequence.entries()) {
-        if (status === targetOrder.status) {
-            currentIndex = index
-        }
-        if (status === newStatus) {
-            newIndex = index
-        }
-    }
+/**
+ * Get all orders
+ */
+export async function getAllOrders() {
+    return await persistence.getAllOrders()
+}
+export const getOrders = getAllOrders
 
-    if (currentIndex === -1) {
-        return 'Current status is invalid.'
-    }
-    if (newIndex === -1) {
-        return 'New status is invalid.'
-    }
-    if (newIndex <= currentIndex) {
-        return 'Invalid status transition. Please follow the correct sequence.'
-    }
+/**
+ * Get order details by orderId
+ */
+export async function getOrderDetails(oid) {
+    return await persistence.getOrderById(oid)
+}
+export const getOrderById = getOrderDetails
 
-    targetOrder.status = newStatus
-    await persistence.updateOrder(targetOrder)
+/**
+ * Attempt to update the order status to a new status level following the ordering rules. 
+ * The newly updated state will be written to the database if the state change is allowed.
+ * 
+ * @param {*} oid Order ID
+ * @param {*} newStatus The new state that we would like to switch to.
+ * @returns true if the operation is successful, false otherwise
+ */
+export async function updateOrderStatus(oid, newStatus) {
+    let statusList = ['Received', 'Washing', 'Ready', 'Delivered']
+    let order = await persistence.getOrderById(oid)
+    if (!order) {
+        return false
+    }
+    let currentPos = statusList.indexOf(order.status)
+    let newPos = statusList.indexOf(newStatus)
+    if (newPos === -1 || newPos <= currentPos) {
+        return false
+    }
+    await persistence.updateOrderStatus(oid, newStatus)
     return true
 }
 
-/**
- * Creates and saves a new customer order.
- * @param {string} customerId - The customer placing the order.
- * @param {Array<object>} serviceArray - The selected services with price and quantity.
- * @returns {Promise<object>} An object with nextOrderId and orderTotal.
- */
-export async function createNewOrder(customerId, serviceArray) {
-    const nextOrderId = await persistence.generateOrderId()
-    const orderDate = new Date().toISOString().split('T')[0]
-    const status = 'Received'
-
-    const items = []
-    for (const service of serviceArray) {
-        items.push({
-            serviceId: service.serviceId,
-            quantity: service.quantity
-        })
+async function computeOrderTotal(orderItems) {
+    let total = 0
+    for (let item of orderItems) {
+        let service = await persistence.getServiceById(item.serviceId)
+        if (service) {
+            total += service.price * item.quantity
+        }
+    }
+    if (total < 25) {
+        total = 25
     }
 
-    const newOrder = {
-        orderId: nextOrderId,
-        customerId: customerId,
-        orderDate: orderDate,
-        status: status,
-        items: items
+    let delivery = 10
+    if (total > 50) {
+        delivery = 0
     }
-
-    await persistence.createOrder(newOrder)
-
-    const totals = await calculateTotals(items)
-
-    return { nextOrderId, orderTotal: totals.totalAmount }
+    total += delivery
+    return total
 }
 
 /**
- * Generates invoice details including item breakdowns, fees, and grand total.
- * @param {string} orderId - The order ID to invoice.
- * @returns {Promise<object|string>} An invoice object, or an error message.
+ * Interact with the customer to create a new order then save it to the storage.
+ * @returns 
  */
-export async function viewInvoice(orderId) {
-    const order = await persistence.findOrder(orderId)
-    if (!order) {
-        return 'Order not found.'
-    }
-
-    const customer = await persistence.findCustomer(order.customerId)
+export async function createNewOrder(customerId, orderItems) {
+    let customer = await persistence.getCustomerById(customerId)
     if (!customer) {
-        return 'Customer not found.'
+        return null
     }
 
-    const totals = await calculateTotals(order.items)
+    const pricedItems = []
+    for (const item of orderItems) {
+        const service = await persistence.getServiceById(item.serviceId)
+        if (!service) return null
+        pricedItems.push({ ...item, price: service.price })
+    }
+    let totals = computeSubTotals(pricedItems)
+    let today = new Date()
+    let orderDate = today.toISOString().substring(0, 10)
+
+    const allOrders = await persistence.getAllOrders()
+    let maxId = 0
+    for (const o of allOrders) {
+        if (o.orderId && o.orderId.startsWith('O')) {
+            const num = parseInt(o.orderId.substring(1), 10)
+            if (!isNaN(num) && num > maxId) maxId = num
+        }
+    }
+    const orderId = `O${String(maxId + 1).padStart(3, '0')}`
+
+    let order = {
+        orderId: orderId,
+        customerId: customerId,
+        orderDate: orderDate,
+        status: 'Received',
+        items: orderItems,
+        total: totals.total
+    }
+    await persistence.saveOrder(order)
+    return order
+}
+
+function computeSubTotals(items) {
+    const minimum_charge = Number(process.env.MINIMUM_ORDER_CHARGE) || 0
+    const free_delivery_threshold = Number(process.env.FREE_DELIVERY_THRESHOLD) || 0
+    const delivery_fee = Number(process.env.DELIVERY_CHARGE) || 0
+    let subTotal = 0
+    for (let it of items) {
+        subTotal += it.quantity*it.price
+    }
+    let minOrderAdjustment = 0
+    if (minimum_charge && subTotal < minimum_charge) {
+        minOrderAdjustment = minimum_charge - subTotal
+    }
+    let deliveryCharge = delivery_fee
+    if (subTotal > free_delivery_threshold) {
+        deliveryCharge = 0
+    }
+    let total = subTotal + minOrderAdjustment + deliveryCharge
 
     return {
-        orderId: order.orderId,
-        customerName: customer.name,
-        orderDate: order.orderDate,
-        status: order.status,
-        items: totals.items,
-        servicesTotal: totals.servicesTotal,
-        minimumOrderAdjustment: totals.minimumOrderAdjustment,
-        deliveryFee: totals.deliveryFee,
-        totalAmount: totals.totalAmount
+        subTotal,
+        minOrderAdjustment,
+        deliveryCharge,
+        total
+    }
+}
+
+export async function generateInvoice(orderId) {
+    let orderDetails = await persistence.getOrderById(orderId)
+    if (!orderDetails) {
+        return null
+    }
+    let customerDetails = await persistence.getCustomerById(orderDetails.customerId)
+    let serviceItems = []
+    for (let it of orderDetails.items) {
+        let service = await persistence.getServiceById(it.serviceId)
+        serviceItems.push({
+            service: service.name,
+            quantity: it.quantity,
+            price: service.price,
+            lineTotal: it.quantity*service.price
+        })
+    }
+    let totals = computeSubTotals(serviceItems)
+    return {
+        order: orderDetails.orderId,
+        date: orderDetails.orderDate,
+        data: orderDetails.orderDate,
+        status: orderDetails.status,
+        customer: customerDetails.name,
+        serviceItems: serviceItems,
+        subTotal: totals.subTotal,
+        minimumAdjustment: totals.minOrderAdjustment,
+        delivery: totals.deliveryCharge,
+        total: totals.total
     }
 }

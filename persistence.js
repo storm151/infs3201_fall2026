@@ -1,168 +1,136 @@
-import * as fs from 'fs/promises'
-import * as dotenv from 'dotenv'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { MongoClient } from 'mongodb';
+import dotenv from 'dotenv';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config();
 
-const configuration = {
-    env: path.resolve(__dirname, '.env'),
-    customers: path.resolve(__dirname, 'customers.json'),
-    services: path.resolve(__dirname, 'services.json'),
-    orders: path.resolve(__dirname, 'orders.json')
-}
+// Load environment variables
+const uri = process.env.MONGO_URI
+const dbName = process.env.MONGO_DB_NAME || process.env.dbname || process.env.DB_NAME 
 
-/**
- * Loads the .env file into process.env once at startup.
- * Missing values default to zero.
- */
-export function loadConfiguration() {
-    dotenv.config({ path: configuration.env })
-}
+// Global variables for caching the client and database connection
+let client;
+let db;
 
 /**
- * Returns the pricing rates from the environment.
- * @returns {object} An object with MINIMUM_ORDER_CHARGE, FREE_DELIVERY_THRESHOLD, and DELIVERY_CHARGE.
+ * Connects to MongoDB and caches the database instance.
+ * Returns the cached database connection on subsequent calls.
  */
-export function getRates() {
-    return {
-        MINIMUM_ORDER_CHARGE: Number(process.env.MINIMUM_ORDER_CHARGE) || 0,
-        FREE_DELIVERY_THRESHOLD: Number(process.env.FREE_DELIVERY_THRESHOLD) || 0,
-        DELIVERY_CHARGE: Number(process.env.DELIVERY_CHARGE) || 0
-    }
-}
-
-/**
- * Reads and parses a JSON file.
- * @param {string} filePath - The path to the JSON file.
- * @returns {Promise<any>} The parsed JSON contents.
- */
-async function readJsonFile(filePath) {
-    const fileContents = await fs.readFile(filePath, 'utf8')
-    return JSON.parse(fileContents)
-}
-
-/**
- * Writes data to a JSON file.
- * @param {string} filePath - The path to the JSON file.
- * @param {any} data - The data to serialize.
- * @returns {Promise<void>} Resolves when the write completes.
- */
-async function writeJsonFile(filePath, data) {
-    await fs.writeFile(filePath, JSON.stringify(data, null, 4))
-}
-
-/**
- * Finds a customer by ID.
- * @param {string} customerId - The customer ID to search for.
- * @returns {Promise<object|null>} The customer object, or null if not found.
- */
-export async function findCustomer(customerId) {
-    const customers = await readJsonFile(configuration.customers)
-    for (const customer of customers) {
-        if (customer.customerId === customerId) {
-            return customer
-        }
-    }
-    return null
-}
-
-/**
- * Finds a laundry service by ID.
- * @param {string} serviceId - The service ID to search for.
- * @returns {Promise<object|null>} The service object, or null if not found.
- */
-export async function findService(serviceId) {
-    const services = await readJsonFile(configuration.services)
-    for (const service of services) {
-        if (service.serviceId === serviceId) {
-            return service
-        }
-    }
-    return null
-}
-
-/**
- * Returns all laundry services.
- * @returns {Promise<Array<object>>} The list of services.
- */
-export async function findAllServices() {
-    return await readJsonFile(configuration.services)
-}
-
-/**
- * Finds an order by ID.
- * @param {string} orderId - The order ID to search for.
- * @returns {Promise<object|null>} The order object, or null if not found.
- */
-export async function findOrder(orderId) {
-    const orders = await readJsonFile(configuration.orders)
-    for (const order of orders) {
-        if (order.orderId === orderId) {
-            return order
-        }
-    }
-    return null
-}
-
-/**
- * Finds all orders belonging to a customer.
- * @param {string} customerId - The customer ID whose orders should be returned.
- * @returns {Promise<Array<object>>} The list of orders for the customer.
- */
-export async function findOrdersByCustomer(customerId) {
-    const orders = await readJsonFile(configuration.orders)
-    const result = []
-    for (const order of orders) {
-        if (order.customerId === customerId) {
-            result.push(order)
-        }
-    }
-    return result
-}
-
-/**
- * Appends a new order to the orders file.
- * @param {object} order - The order object to save.
- * @returns {Promise<void>} Resolves when the order is saved.
- */
-export async function createOrder(order) {
-    const orders = await readJsonFile(configuration.orders)
-    orders.push(order)
-    await writeJsonFile(configuration.orders, orders)
-}
-
-/**
- * Updates an existing order in the orders file.
- * @param {object} order - The order object to update.
- * @returns {Promise<void>} Resolves when the order is updated.
- */
-export async function updateOrder(order) {
-    const orders = await readJsonFile(configuration.orders)
-    for (let i = 0; i < orders.length; i++) {
-        if (orders[i].orderId === order.orderId) {
-            orders[i] = order
-            break
-        }
-    }
-    await writeJsonFile(configuration.orders, orders)
-}
-
-/**
- * Generates the next order ID based on existing orders.
- * @returns {Promise<string>} The next order ID.
- */
-export async function generateOrderId() {
-    const orders = await readJsonFile(configuration.orders)
-    let maxNumber = 0
-
-    for (const order of orders) {
-        const numericPart = parseInt(order.orderId, 10)
-        if (!isNaN(numericPart) && numericPart > maxNumber) {
-            maxNumber = numericPart
-        }
+async function getDatabase() {
+    if (db) {
+        return db; 
     }
 
-    const nextNumber = maxNumber + 1
-    return String(nextNumber).padStart(4, '0')
+    client = new MongoClient(uri);
+    await client.connect();
+    db = client.db(dbName);
+    return db;
+}
+
+
+/**
+ * Finds a single customer by customerId.
+ */
+export async function getCustomerById(customerId) {
+    const database = await getDatabase();
+    const customer = await database.collection('customers').findOne(
+        { customerId: customerId },
+        { projection: { _id: 0 } } // Exclude MongoDB internal _id
+    );
+    return customer;
+}
+export const getCustomer = getCustomerById;
+
+/**
+ * Retrieves all customers from the database.
+ */
+export async function getAllCustomers() {
+    const database = await getDatabase();
+    const customers = await database.collection('customers')
+        .find({}, { projection: { _id: 0 } })
+        .toArray();
+    return customers;
+}
+export const getCustomers = getAllCustomers;
+
+/**
+ * Retrieves all laundry services.
+ */
+export async function getAllServices() {
+    const database = await getDatabase();
+    const services = await database.collection('services')
+        .find({}, { projection: { _id: 0 } })
+        .toArray();
+    return services;
+}
+export const getServices = getAllServices;
+
+/**
+ * Finds a single service by serviceId.
+ */
+export async function getServiceById(serviceId) {
+    const database = await getDatabase();
+    const service = await database.collection('services').findOne(
+        { serviceId: serviceId },
+        { projection: { _id: 0 } }
+    );
+    return service;
+}
+export const getService = getServiceById;
+
+/**
+ * Retrieves all orders.
+ * Converts cursor to array using .toArray().
+ */
+export async function getAllOrders() {
+    const database = await getDatabase();
+    const orders = await database.collection('orders')
+        .find({}, { projection: { _id: 0 } })
+        .toArray();
+    return orders;
+}
+export const getOrders = getAllOrders;
+
+/**
+ * Finds a single order by orderId.
+ */
+export async function getOrderById(orderId) {
+    const database = await getDatabase();
+    const order = await database.collection('orders').findOne(
+        { orderId: orderId },
+        { projection: { _id: 0 } }
+    );
+    return order;
+}
+export const getOrderDetails = getOrderById;
+
+/**
+ * Finds all orders belonging to a specific customerId.
+ */
+export async function getOrdersByCustomerId(customerId) {
+    const database = await getDatabase();
+    const orders = await database.collection('orders')
+        .find({ customerId: customerId }, { projection: { _id: 0 } })
+        .toArray();
+    return orders;
+}
+
+/**
+ * Updates the status of a single order by orderId.
+ */
+export async function updateOrderStatus(orderId, newStatus) {
+    const database = await getDatabase();
+    const result = await database.collection('orders').updateOne(
+        { orderId: orderId },
+        { $set: { status: newStatus } }
+    );
+    return result.modifiedCount > 0;
+}
+
+/**
+ * Inserts a new order document into MongoDB.
+ */
+export async function saveOrder(newOrder) {
+    const database = await getDatabase();
+    const result = await database.collection('orders').insertOne(newOrder);
+    return result.acknowledged;
 }

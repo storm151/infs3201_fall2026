@@ -1,17 +1,28 @@
 {
-  "name": "json_data",
+  "name": "infs3201-fall2026",
   "version": "1.0.0",
   "description": "",
-  "main": "userInterface.js",
+  "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/robert-ford-udst/infs3201-fall2026.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
+  "bugs": {
+    "url": "https://github.com/robert-ford-udst/infs3201-fall2026/issues"
+  },
+  "homepage": "https://github.com/robert-ford-udst/infs3201-fall2026#readme",
   "dependencies": {
-    "dotenv": "^18.0.4",
+    "dotenv": "^17.4.2",
+    "express": "^5.3.0",
+    "express-handlebars": "^8.0.6",
+    "mongodb": "^7.7.0",
     "prompt-sync": "^4.2.0"
   }
 }
