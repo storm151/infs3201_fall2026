@@ -3,11 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Load environment variables
-const uri = process.env.MONGO_URI
-const dbName = process.env.MONGO_DB_NAME || process.env.dbname || process.env.DB_NAME 
-
-// Global variables for caching the client and database connection
+// Load environment variables safely inside getDatabase
 let client;
 let db;
 
@@ -17,15 +13,17 @@ let db;
  */
 async function getDatabase() {
     if (db) {
-        return db; 
+        return db;
     }
+
+    const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017';
+    const dbName = process.env.MONGO_DB_NAME || process.env.dbname || process.env.DB_NAME || 'infs3201_fall2026';
 
     client = new MongoClient(uri);
     await client.connect();
     db = client.db(dbName);
     return db;
 }
-
 
 /**
  * Finds a single customer by customerId.

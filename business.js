@@ -163,7 +163,7 @@ function computeSubTotals(items) {
     const delivery_fee = Number(process.env.DELIVERY_CHARGE) || 0
     let subTotal = 0
     for (let it of items) {
-        subTotal += it.quantity*it.price
+        subTotal += it.quantity * it.price
     }
     let minOrderAdjustment = 0
     if (minimum_charge && subTotal < minimum_charge) {
@@ -196,7 +196,7 @@ export async function generateInvoice(orderId) {
             service: service.name,
             quantity: it.quantity,
             price: service.price,
-            lineTotal: it.quantity*service.price
+            lineTotal: it.quantity * service.price
         })
     }
     let totals = computeSubTotals(serviceItems)
