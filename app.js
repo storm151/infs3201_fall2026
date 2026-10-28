@@ -1,176 +1,184 @@
-import * as business from './business.js'
-import promptSync from 'prompt-sync'
-import dotenv from 'dotenv'
-const prompt = promptSync()
+import express from 'express';
+import { engine } from 'express-handlebars';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import * as business from './business.js';
 
-dotenv.config()
+dotenv.config();
 
-/**
- * Display the laundry services in a nicely formatted table.
- */
-async function showLaundryServices() {
-    let services = await business.getServices()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-    console.log('\n')
-    console.log('Service ID Service                    Unit    Price')
-    console.log('---------- -------------------------- ------- ------')
-    for (let s of services) {
-        console.log(`${s.serviceId.padEnd(10)} ${s.name.padEnd(26)} ${s.unit.padEnd(5)} ${s.price.toFixed(2).padStart(8)}`)
-    }
-    console.log('\n')
-}
+const app = express();
+const PORT = process.env.PORT || 3000;
 
+// 1. Template Engine & Middleware Setup
+app.engine('handlebars', engine({
+    defaultLayout: 'main',
+    layoutsDir: path.join(__dirname, 'views/layouts')
+}));
+app.set('view engine', 'handlebars');
+app.set('views', path.join(__dirname, 'views'));
 
-/**
- * Display a list of orders per customer in a structure way
- * @returns nothing
- */
-async function showCustomerOrders() {
-    let customerId = prompt('Enter customer ID: ')
-    let details = await business.getCustomerInformation(customerId)
-    if (!details) {
-        console.log("**** customer not found")
-        return
-    }
-    console.log(`Orders for ${details.name}`)
-    console.log('Order ID  Order Date  Status      Total')
-    console.log('--------  ----------  ----------- -----')
-    for (let ord of details.orders) {
-        console.log(`${ord.order.padEnd(8)}  ${ord.date.padEnd(10)}  ${ord.status.padEnd(11)} ${ord.total.toFixed(2).padStart(5)}`)
-    }
-}
+// Static files (CSS, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Parse URL-encoded bodies for form submissions
+app.use(express.urlencoded({ extended: true }));
+
+// 2. Routes & Views
 
 /**
- * Interact with the customer to create a new order then save it to the storage.
- * @returns 
+ * Route / (Landing Page)
+ * Renders home view using the shared main layout.
  */
-async function createNewOrder() {
-    let customerId = prompt('Enter customer ID: ')
-    let customer = await business.getCustomerInformation(customerId)
-    if (!customer) {
-        console.log('**** customer not found')
-        return
-    }
+app.get('/', (req, res) => {
+    res.render('home');
+});
 
-    let items = []
-    while (true) {
-        let serviceId = prompt('Enter service ID (blank to finish): ')
-        if (serviceId == '') {
-            break
+/**
+ * Route /services (Services List Page)
+ * Fetches all services from the business layer and renders the services table.
+ */
+app.get('/services', async (req, res, next) => {
+    try {
+        const services = await business.getServices();
+        res.render('services', { services: services || [] });
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * Route /customer (Find Customer Search Form)
+ * Renders the search form allowing the user to search by customerId.
+ */
+app.get('/customer', (req, res) => {
+    res.render('customer');
+});
+
+/**
+ * Route /find-results (Customer Search Results)
+ * Fetches customer details and orders via the business layer.
+ * Displays customer info if found, or an error message if not found.
+ */
+app.get('/find-results', async (req, res, next) => {
+    try {
+        const customerId = req.query.customer_id?.trim() || req.query.customerId?.trim();
+
+        if (!customerId) {
+            return res.render('customer', { error: 'Please enter a valid Customer ID.' });
         }
 
-        let service = await business.getService(serviceId)
-        if (!service) {
-            console.log('**** service not found')
-            continue
+        const customer = await business.getCustomerInformation(customerId);
+        if (!customer) {
+            return res.render('customer', { error: `Customer '${customerId}' not found.` });
         }
 
-        let quantity = Number(prompt('Enter quantity: '))
-        items.push({
-            serviceId: serviceId,
-            quantity: quantity
-        })
+        res.render('customer', { customer });
+    } catch (err) {
+        next(err);
     }
-
-    if (items.length == 0) {
-        console.log('**** order must contain at least one service')
-        return
-    }
-    let orderDetails = await business.createNewOrder(customerId, items)
-
-    console.log(`Order ${orderDetails.orderId} created`)
-    console.log(`Total price: ${orderDetails.total.toFixed(2)} QAR`)
-}
+});
 
 /**
- * Interact with the customer to determine the current status of an order and update it with a 
- * new status if allowed.
+ * Route /orders (Orders Summary Page)
+ * Fetches all orders, populates customer names, and renders the orders table with status classes.
  */
-async function changeOrderStatus() {
-    let oid = prompt('Enter order ID: ')
-    let details = await business.getOrderDetails(oid)
-    console.log(`Current status: ${details.status}`)
-    let newStatus = prompt('Enter new status: ')
-    let result = await business.updateOrderStatus(details.orderId, newStatus)
-    if (!result) {
-        console.log('New status not accepted')
-    }
-    else {
-        console.log('Status updated')
-    }
-}
+app.get('/orders', async (req, res, next) => {
+    try {
+        const orders = await business.getAllOrders();
 
-function formatMoney(amount, width=0) {
-    let fixed = amount.toFixed(2)
-    return String(fixed).padStart(width)
-}
+        // Enrich orders with customer names and formatted dates
+        const enrichedOrders = await Promise.all(
+            (orders || []).map(async (order) => {
+                let customerName = order.customerName;
+                if (!customerName && order.customerId) {
+                    const cust = await business.getCustomerById(order.customerId);
+                    customerName = cust?.name || order.customerId;
+                }
+                return {
+                    ...order,
+                    customerName: customerName || 'N/A',
+                    date: order.orderDate || order.date || 'N/A'
+                };
+            })
+        );
 
-async function showInvoice() {
-    let orderId = prompt('Enter order ID: ')
-    let invoice = await business.generateInvoice(orderId)
-    if (!invoice) {
-        console.log("****** not found*****")
-        return
+        res.render('orders', { orders: enrichedOrders });
+    } catch (err) {
+        next(err);
     }
-    console.log(invoice)
-    console.log(`Order: ${invoice.order}     Date: ${invoice.data}      Status: ${invoice.status}`)
-    console.log(`Customer: ${invoice.customer}`)
-    console.log()
-    console.log('Service            Qty      Price      Line Total')
-    console.log('------------------ ------ -----------  ----------')
-    for (let it of invoice.serviceItems) {
-        console.log(`${it.service.padEnd(18)} ${String(it.quantity).padEnd(7)} `+ 
-        `${formatMoney(it.price,10)} ${formatMoney(it.lineTotal,11)}`)
-    }
-    console.log()
-    console.log(`        Service subtotal: ${formatMoney(invoice.subTotal,23)}`)
-    console.log(`Minimum-order adjustment: ${formatMoney(invoice.minimumAdjustment, 23)}`)
-    console.log(`         Delivery charge: ${formatMoney(invoice.delivery, 23)}`)
-    console.log(`             Final total: ${formatMoney(invoice.total, 23)} QAR`)
-}
+});
 
 /**
- * Display the menu to the user and wait for their input.  If the input is invalid the function
- * displays a message and prompts again.  If the user enters a valid value then the function stops and
- * returns the selection number.
- * @returns A valid selection number.
+ * Route GET /update-status (Status Modification Form)
+ * Displays order ID and status selection dropdown.
  */
-function showMenu() {
-    while (true) {
-        console.log('1. Show laundry services')
-        console.log('2. View customer orders')
-        console.log('3. Update order status')
-        console.log('4. Create new order')
-        console.log('5. View order details')
-        console.log('6. Exit\n')
-        let selection = Number(prompt('What is your choice> '))
-        if (selection >= 1 && selection <= 6) {
-            return selection
+app.get('/update-status', async (req, res, next) => {
+    try {
+        const orderId = req.query.order?.trim() || req.query.orderId?.trim();
+
+        if (!orderId) {
+            return res.status(400).send('Order ID is required.');
         }
-        console.log("*** Invalid input.. try again! ***")
-    }
-}
 
+        const order = await business.getOrderDetails(orderId);
+        if (!order) {
+            return res.status(404).send('Order not found.');
+        }
 
-while (true) {
-    let option = showMenu()
-    if (option === 1) {
-        await showLaundryServices()
+        res.render('update-status', {
+            orderId: order.orderId,
+            order: order,
+            states: ['Received', 'Washing', 'Ready', 'Delivered']
+        });
+    } catch (err) {
+        next(err);
     }
-    else if (option === 2) {
-        await showCustomerOrders()
+});
+
+/**
+ * Route POST /update-status (Status Modification Action)
+ * Validates state transition against business rules.
+ * If invalid: responds with "Invalid State".
+ * If valid: updates order in database and redirects to /orders (PRG pattern).
+ */
+app.post('/update-status', async (req, res, next) => {
+    try {
+        const orderId = req.body.orderId?.trim() || req.body.order?.trim();
+        const newStatus = req.body.newStatus?.trim() || req.body.status?.trim();
+
+        if (!orderId || !newStatus) {
+            return res.status(400).send('Invalid State');
+        }
+
+        const success = await business.updateOrderStatus(orderId, newStatus);
+        if (!success) {
+            return res.status(400).send('Invalid State');
+        }
+
+        // Post/Redirect/Get pattern
+        res.redirect('/orders');
+    } catch (err) {
+        next(err);
     }
-    else if (option === 3) {
-        await changeOrderStatus()
-    }
-    else if (option === 4) {
-        await createNewOrder()
-    }
-    else if (option === 5) {
-        await showInvoice()
-    }
-    else {
-        break
-    }
-}
-console.log("Thank you")
+});
+
+// 3. 404 Handler for undefined routes
+app.use((req, res) => {
+    res.status(404).send('Page not found');
+});
+
+// Global Error Handler to prevent Express server crashes
+app.use((err, req, res, next) => {
+    console.error('Unhandled Server Error:', err);
+    res.status(500).send('Internal Server Error');
+});
+
+// Start the Express server
+app.listen(PORT, () => {
+    console.log(`Laundry App running at http://localhost:${PORT}`);
+});
+

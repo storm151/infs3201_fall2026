@@ -1,0 +1,27 @@
+<h1>Find Customer</h1>
+
+{{!-- Display Search Form --}}
+<form action="/find-results" method="GET">
+    <label for="customer_id">Customer ID </label>
+    <input type="text" id="customer_id" name="customer_id" required>
+    <button type="submit">Find</button>
+</form>
+
+{{!-- Display Error Message if customer is not found --}}
+{{#if error}}
+<p style="color: red;">{{error}}</p>
+{{/if}}
+
+{{!-- Display Customer Information & Orders if customer is found --}}
+{{#if customer}}
+<div style="margin-top: 20px;">
+    <h2>Search results</h2>
+    <p><strong>Name: {{customer.name}}</strong> Orders:</p>
+
+    <ul>
+        {{#each customer.orders}}
+        <li>{{this.orderId}}, {{this.orderDate}}, {{this.status}}, total: {{this.total}}</li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}

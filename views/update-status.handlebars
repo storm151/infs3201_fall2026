@@ -1,0 +1,25 @@
+<h1>Order ID: {{orderId}}</h1>
+
+<form action="/update-status" method="POST">
+    <input type="hidden" name="orderId" value="{{orderId}}">
+
+    <label for="newStatus">New Status:</label>
+    <select name="newStatus" id="newStatus" required>
+        {{#if states}}
+        {{#each states}}
+        <option value="{{this}}">{{this}}</option>
+        {{/each}}
+        {{else if statuses}}
+        {{#each statuses}}
+        <option value="{{this}}">{{this}}</option>
+        {{/each}}
+        {{else}}
+        <option value="Received">Received</option>
+        <option value="Washing">Washing</option>
+        <option value="Ready">Ready</option>
+        <option value="Delivered">Delivered</option>
+        {{/if}}
+    </select>
+
+    <button type="submit">Update Status</button>
+</form>

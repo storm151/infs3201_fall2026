@@ -1,0 +1,24 @@
+<h1>Orders</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Order ID</th>
+            <th>Customer Name</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#each orders}}
+        <tr>
+            <td>{{this.orderId}}</td>
+            <td>{{#if this.customerName}}{{this.customerName}}{{else if this.name}}{{this.name}}{{else if this.customer}}{{this.customer}}{{else}}{{this.customerId}}{{/if}}</td>
+            <td>{{#if this.date}}{{this.date}}{{else}}{{this.orderDate}}{{/if}}</td>
+            <td class="status-{{this.status}}">{{this.status}}</td>
+            <td><a href="/update-status?order={{this.orderId}}">Update Status</a></td>
+        </tr>
+        {{/each}}
+    </tbody>
+</table>
