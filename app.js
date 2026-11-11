@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as business from './business.js';
 
-dotenv.config();
+dotenv.config({ path: ['.env', 'env.exmple'] });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,7 +52,7 @@ app.get('/services', async (req, res, next) => {
 
 /**
  * Route /customer (Find Customer Search Form)
- * Renders the search form allowing the user to search by customerId.
+ * Renders the search form allowing the user to search by phone number.
  */
 app.get('/customer', (req, res) => {
     res.render('customer');
@@ -65,15 +65,15 @@ app.get('/customer', (req, res) => {
  */
 app.get('/find-results', async (req, res, next) => {
     try {
-        const customerId = req.query.customer_id?.trim() || req.query.customerId?.trim();
+        const phone = req.query.phone?.trim() || req.query.phone_number?.trim() || req.query.phoneNumber?.trim();
 
-        if (!customerId) {
-            return res.render('customer', { error: 'Please enter a valid Customer ID.' });
+        if (!phone) {
+            return res.render('customer', { error: 'Please enter a valid Phone Number.' });
         }
 
-        const customer = await business.getCustomerInformation(customerId);
+        const customer = await business.getCustomerInformation(phone);
         if (!customer) {
-            return res.render('customer', { error: `Customer '${customerId}' not found.` });
+            return res.render('customer', { error: `Customer with phone '${phone}' not found.` });
         }
 
         res.render('customer', { customer });

@@ -1,7 +1,7 @@
 import * as persistence from './persistence.js'
 import dotenv from 'dotenv'
 
-dotenv.config()
+dotenv.config({ path: ['.env', 'env.exmple'] })
 
 /**
  * Get all services
@@ -21,14 +21,14 @@ export async function getService(serviceId) {
 export const getServiceById = getService
 
 /**
- * Get customer information and their associated orders
+ * Get customer information and their associated orders by phone number
  */
-export async function getCustomerInformation(cid) {
-    let customer = await persistence.getCustomerById(cid)
+export async function getCustomerInformation(phone) {
+    let customer = await persistence.getCustomerByPhone(phone)
     if (!customer) {
         return null
     }
-    let orders = await persistence.getOrdersByCustomerId(cid)
+    let orders = await persistence.getOrdersByCustomerId(customer.customerId)
     for (let ord of orders) {
         ord.order = ord.orderId
         ord.date = ord.orderDate
@@ -40,6 +40,14 @@ export async function getCustomerInformation(cid) {
     return customer
 }
 export const getCustomer = getCustomerInformation
+export const getCustomerInformationByPhone = getCustomerInformation
+
+/**
+ * Get a customer by phone number
+ */
+export async function getCustomerByPhone(phone) {
+    return await persistence.getCustomerByPhone(phone)
+}
 
 /**
  * Get a customer by customerId

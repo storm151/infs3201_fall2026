@@ -4,7 +4,7 @@ import dns from "dns";
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
-dotenv.config();
+dotenv.config({ path: ['.env', 'env.exmple'] });
 
 // Load environment variables safely inside getDatabase
 let client;
@@ -40,6 +40,18 @@ export async function getCustomerById(customerId) {
     return customer;
 }
 export const getCustomer = getCustomerById;
+
+/**
+ * Finds a single customer by phone number.
+ */
+export async function getCustomerByPhone(phone) {
+    const database = await getDatabase();
+    const customer = await database.collection('customers').findOne(
+        { phone: phone },
+        { projection: { _id: 0 } } // Exclude MongoDB internal _id
+    );
+    return customer;
+}
 
 /**
  * Retrieves all customers from the database.
