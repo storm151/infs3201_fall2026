@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import dns from "dns";
 
@@ -9,6 +9,19 @@ dotenv.config({ path: ['.env', 'env.exmple'] });
 // Load environment variables safely inside getDatabase
 let client;
 let db;
+
+/**
+ * Helper to convert string IDs to MongoDB ObjectId when valid.
+ */
+function toObjectId(id) {
+    if (id instanceof ObjectId) {
+        return id;
+    }
+    if (typeof id === 'string' && ObjectId.isValid(id)) {
+        return new ObjectId(id);
+    }
+    return id;
+}
 
 /**
  * Connects to MongoDB and caches the database instance.
@@ -29,13 +42,12 @@ async function getDatabase() {
 }
 
 /**
- * Finds a single customer by customerId.
+ * Finds a single customer by _id.
  */
 export async function getCustomerById(customerId) {
     const database = await getDatabase();
     const customer = await database.collection('customers').findOne(
-        { customerId: customerId },
-        { projection: { _id: 0 } } // Exclude MongoDB internal _id
+        { _id: toObjectId(customerId) }
     );
     return customer;
 }
@@ -47,8 +59,7 @@ export const getCustomer = getCustomerById;
 export async function getCustomerByPhone(phone) {
     const database = await getDatabase();
     const customer = await database.collection('customers').findOne(
-        { phone: phone },
-        { projection: { _id: 0 } } // Exclude MongoDB internal _id
+        { phone: phone }
     );
     return customer;
 }
@@ -59,7 +70,7 @@ export async function getCustomerByPhone(phone) {
 export async function getAllCustomers() {
     const database = await getDatabase();
     const customers = await database.collection('customers')
-        .find({}, { projection: { _id: 0 } })
+        .find({})
         .toArray();
     return customers;
 }
@@ -71,20 +82,19 @@ export const getCustomers = getAllCustomers;
 export async function getAllServices() {
     const database = await getDatabase();
     const services = await database.collection('services')
-        .find({}, { projection: { _id: 0 } })
+        .find({})
         .toArray();
     return services;
 }
 export const getServices = getAllServices;
 
 /**
- * Finds a single service by serviceId.
+ * Finds a single service by _id.
  */
 export async function getServiceById(serviceId) {
     const database = await getDatabase();
     const service = await database.collection('services').findOne(
-        { serviceId: serviceId },
-        { projection: { _id: 0 } }
+        { _id: toObjectId(serviceId) }
     );
     return service;
 }
@@ -97,43 +107,42 @@ export const getService = getServiceById;
 export async function getAllOrders() {
     const database = await getDatabase();
     const orders = await database.collection('orders')
-        .find({}, { projection: { _id: 0 } })
+        .find({})
         .toArray();
     return orders;
 }
 export const getOrders = getAllOrders;
 
 /**
- * Finds a single order by orderId.
+ * Finds a single order by _id.
  */
 export async function getOrderById(orderId) {
     const database = await getDatabase();
     const order = await database.collection('orders').findOne(
-        { orderId: orderId },
-        { projection: { _id: 0 } }
+        { _id: toObjectId(orderId) }
     );
     return order;
 }
 export const getOrderDetails = getOrderById;
 
 /**
- * Finds all orders belonging to a specific customerId.
+ * Finds all orders belonging to a specific customer _id.
  */
 export async function getOrdersByCustomerId(customerId) {
     const database = await getDatabase();
     const orders = await database.collection('orders')
-        .find({ customerId: customerId }, { projection: { _id: 0 } })
+        .find({ customerId: toObjectId(customerId) })
         .toArray();
     return orders;
 }
 
 /**
- * Updates the status of a single order by orderId.
+ * Updates the status of a single order by _id.
  */
 export async function updateOrderStatus(orderId, newStatus) {
     const database = await getDatabase();
     const result = await database.collection('orders').updateOne(
-        { orderId: orderId },
+        { _id: toObjectId(orderId) },
         { $set: { status: newStatus } }
     );
     return result.modifiedCount > 0;

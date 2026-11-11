@@ -96,10 +96,12 @@ app.get('/orders', async (req, res, next) => {
                 let customerName = order.customerName;
                 if (!customerName && order.customerId) {
                     const cust = await business.getCustomerById(order.customerId);
-                    customerName = cust?.name || order.customerId;
+                    customerName = cust?.name || String(order.customerId);
                 }
                 return {
                     ...order,
+                    _id: String(order._id),
+                    orderId: String(order._id),
                     customerName: customerName || 'N/A',
                     date: order.orderDate || order.date || 'N/A'
                 };
@@ -118,7 +120,7 @@ app.get('/orders', async (req, res, next) => {
  */
 app.get('/update-status', async (req, res, next) => {
     try {
-        const orderId = req.query.order?.trim() || req.query.orderId?.trim();
+        const orderId = req.query.order?.trim() || req.query.orderId?.trim() || req.query._id?.trim();
 
         if (!orderId) {
             return res.status(400).send('Order ID is required.');
@@ -130,7 +132,8 @@ app.get('/update-status', async (req, res, next) => {
         }
 
         res.render('update-status', {
-            orderId: order.orderId,
+            _id: String(order._id),
+            orderId: String(order._id),
             order: order,
             states: ['Received', 'Washing', 'Ready', 'Delivered']
         });
@@ -147,7 +150,7 @@ app.get('/update-status', async (req, res, next) => {
  */
 app.post('/update-status', async (req, res, next) => {
     try {
-        const orderId = req.body.orderId?.trim() || req.body.order?.trim();
+        const orderId = req.body.orderId?.trim() || req.body.order?.trim() || req.body._id?.trim();
         const newStatus = req.body.newStatus?.trim() || req.body.status?.trim();
 
         if (!orderId || !newStatus) {

@@ -28,8 +28,9 @@ export async function getCustomerInformation(phone) {
     if (!customer) {
         return null
     }
-    let orders = await persistence.getOrdersByCustomerId(customer.customerId)
+    let orders = await persistence.getOrdersByCustomerId(customer._id)
     for (let ord of orders) {
+        ord.orderId = ord.orderId || String(ord._id)
         ord.order = ord.orderId
         ord.date = ord.orderDate
         if (ord.total === undefined) {
@@ -50,7 +51,7 @@ export async function getCustomerByPhone(phone) {
 }
 
 /**
- * Get a customer by customerId
+ * Get a customer by customerId (_id)
  */
 export async function getCustomerById(cid) {
     return await persistence.getCustomerById(cid)
@@ -68,15 +69,23 @@ export const getCustomers = getAllCustomers
  * Get all orders
  */
 export async function getAllOrders() {
-    return await persistence.getAllOrders()
+    const orders = await persistence.getAllOrders()
+    for (const ord of orders) {
+        ord.orderId = ord.orderId || String(ord._id)
+    }
+    return orders
 }
 export const getOrders = getAllOrders
 
 /**
- * Get order details by orderId
+ * Get order details by orderId (_id)
  */
 export async function getOrderDetails(oid) {
-    return await persistence.getOrderById(oid)
+    const order = await persistence.getOrderById(oid)
+    if (order) {
+        order.orderId = order.orderId || String(order._id)
+    }
+    return order
 }
 export const getOrderById = getOrderDetails
 
@@ -137,28 +146,17 @@ export async function createNewOrder(customerId, orderItems) {
     for (const item of orderItems) {
         const service = await persistence.getServiceById(item.serviceId)
         if (!service) return null
-        pricedItems.push({ ...item, price: service.price })
+        pricedItems.push({ ...item, serviceId: service._id, price: service.price })
     }
     let totals = computeSubTotals(pricedItems)
     let today = new Date()
     let orderDate = today.toISOString().substring(0, 10)
 
-    const allOrders = await persistence.getAllOrders()
-    let maxId = 0
-    for (const o of allOrders) {
-        if (o.orderId && o.orderId.startsWith('O')) {
-            const num = parseInt(o.orderId.substring(1), 10)
-            if (!isNaN(num) && num > maxId) maxId = num
-        }
-    }
-    const orderId = `O${String(maxId + 1).padStart(3, '0')}`
-
     let order = {
-        orderId: orderId,
-        customerId: customerId,
+        customerId: customer._id,
         orderDate: orderDate,
         status: 'Received',
-        items: orderItems,
+        items: orderItems.map(item => ({ ...item, serviceId: pricedItems.find(p => String(p.serviceId) === String(item.serviceId))?.serviceId ?? item.serviceId })),
         total: totals.total
     }
     await persistence.saveOrder(order)
@@ -208,8 +206,9 @@ export async function generateInvoice(orderId) {
         })
     }
     let totals = computeSubTotals(serviceItems)
+    const resolvedOrderId = orderDetails.orderId || String(orderDetails._id)
     return {
-        order: orderDetails.orderId,
+        order: resolvedOrderId,
         date: orderDetails.orderDate,
         data: orderDetails.orderDate,
         status: orderDetails.status,
