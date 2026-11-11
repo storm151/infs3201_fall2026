@@ -27,7 +27,102 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Parse URL-encoded bodies for form submissions
 app.use(express.urlencoded({ extended: true }));
 
+// Parse cookies from request headers
+app.use((req, res, next) => {
+    req.cookies = {};
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+        for (const pair of cookieHeader.split(';')) {
+            const idx = pair.indexOf('=');
+            if (idx !== -1) {
+                const key = pair.slice(0, idx).trim();
+                const val = decodeURIComponent(pair.slice(idx + 1).trim());
+                req.cookies[key] = val;
+            }
+        }
+    }
+    next();
+});
+
 // 2. Routes & Views
+
+/**
+ * Route GET /login (Login Screen)
+ * Renders the login form asking for email and password.
+ */
+app.get('/login', (req, res) => {
+    res.render('login');
+});
+
+/**
+ * Route POST /login (Authentication & Session Start)
+ * Checks both customers and staff_users collections.
+ * If invalid: displays an error message on the login page.
+ * If valid: creates a MongoDB session with a fixed 10-minute expiry and redirects to /dashboard.
+ */
+app.post('/login', async (req, res, next) => {
+    try {
+        const email = req.body.email?.trim();
+        const password = req.body.password;
+
+        if (!email || !password) {
+            return res.render('login', { error: 'Please enter both email and password.' });
+        }
+
+        const session = await business.login(email, password);
+        if (!session) {
+            return res.render('login', { error: 'Invalid email or password.' });
+        }
+
+        res.cookie('session', session.sessionKey, {
+            expires: session.expiry,
+            httpOnly: true
+        });
+
+        res.redirect('/dashboard');
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * Route GET /dashboard (Temporary Post-Login Page)
+ * Displays whether the logged-in user is a "staff" or "customer".
+ */
+app.get('/dashboard', async (req, res, next) => {
+    try {
+        const sessionKey = req.cookies?.session;
+        const session = await business.getSession(sessionKey);
+
+        if (!session) {
+            res.clearCookie('session');
+            return res.redirect('/login');
+        }
+
+        res.render('dashboard', {
+            userType: session.userType,
+            user: session.data
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * Route GET /logout (End Session)
+ */
+app.get('/logout', async (req, res, next) => {
+    try {
+        const sessionKey = req.cookies?.session;
+        if (sessionKey) {
+            await business.logout(sessionKey);
+        }
+        res.clearCookie('session');
+        res.redirect('/login');
+    } catch (err) {
+        next(err);
+    }
+});
 
 /**
  * Route / (Landing Page)

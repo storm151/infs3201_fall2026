@@ -157,6 +157,58 @@ export async function saveOrder(newOrder) {
     return result.acknowledged;
 }
 
+/**
+ * Finds a single customer by email address.
+ */
+export async function getCustomerByEmail(email) {
+    const database = await getDatabase();
+    const customer = await database.collection('customers').findOne(
+        { email: email }
+    );
+    return customer;
+}
+
+/**
+ * Finds a single staff user by email address from the staff_users collection.
+ */
+export async function getStaffUserByEmail(email) {
+    const database = await getDatabase();
+    const staffUser = await database.collection('staff_users').findOne(
+        { email: email }
+    );
+    return staffUser;
+}
+
+/**
+ * Saves a new session document in the sessions collection in MongoDB.
+ */
+export async function saveSession(sessionData) {
+    const database = await getDatabase();
+    await database.collection('sessions').insertOne(sessionData);
+    return sessionData;
+}
+
+/**
+ * Retrieves a session document by its sessionKey.
+ */
+export async function getSession(sessionKey) {
+    const database = await getDatabase();
+    const session = await database.collection('sessions').findOne(
+        { sessionKey: sessionKey }
+    );
+    return session;
+}
+
+/**
+ * Deletes a session document by its sessionKey.
+ */
+export async function deleteSession(sessionKey) {
+    const database = await getDatabase();
+    await database.collection('sessions').deleteOne(
+        { sessionKey: sessionKey }
+    );
+}
+
 async function testPersistence() {
     console.log('--- Starting Persistence Tests ---');
     try {
@@ -200,20 +252,20 @@ async function testPersistence() {
         const allCustomers = await getAllCustomers();
         console.log(`  Total customers found: ${allCustomers.length}`);
         if (allCustomers.length > 0) {
-            console.log('  Available customer IDs:', allCustomers.map(c => c.customerId));
+            console.log('  Available customer _ids:', allCustomers.map(c => c._id));
             console.log('  Sample customer:', allCustomers[0]);
         }
 
-        // 3. Test getCustomerById()
-        console.log('\n[3] Testing getCustomerById():');
-        const targetId = 'C002';
-        const customer = await getCustomerById(targetId);
-        console.log(`  getCustomerById('${targetId}'):`, customer);
+        // 3. Test getCustomerById() and getCustomerByPhone()
+        console.log('\n[3] Testing getCustomerById() & getCustomerByPhone():');
+        if (allCustomers.length > 0) {
+            const firstId = allCustomers[0]._id;
+            const customerById = await getCustomerById(firstId);
+            console.log(`  getCustomerById('${firstId}'):`, customerById);
 
-        if (!customer && allCustomers.length > 0) {
-            console.log(`  Target '${targetId}' was not found, but trying first existing customer:`);
-            const firstExisting = await getCustomerById(allCustomers[0].customerId);
-            console.log(`  getCustomerById('${allCustomers[0].customerId}'):`, firstExisting);
+            const firstPhone = allCustomers[0].phone;
+            const customerByPhone = await getCustomerByPhone(firstPhone);
+            console.log(`  getCustomerByPhone('${firstPhone}'):`, customerByPhone);
         }
 
         // 4. Test getAllServices() and getServiceById()
@@ -222,8 +274,8 @@ async function testPersistence() {
         console.log(`  Total services found: ${allServices.length}`);
         if (allServices.length > 0) {
             console.log('  Sample service:', allServices[0]);
-            const service = await getServiceById(allServices[0].serviceId);
-            console.log(`  getServiceById('${allServices[0].serviceId}'):`, service);
+            const service = await getServiceById(allServices[0]._id);
+            console.log(`  getServiceById('${allServices[0]._id}'):`, service);
         }
 
         // 5. Test getAllOrders(), getOrderById(), and getOrdersByCustomerId()
@@ -232,8 +284,8 @@ async function testPersistence() {
         console.log(`  Total orders found: ${allOrders.length}`);
         if (allOrders.length > 0) {
             console.log('  Sample order:', allOrders[0]);
-            const order = await getOrderById(allOrders[0].orderId);
-            console.log(`  getOrderById('${allOrders[0].orderId}'):`, order);
+            const order = await getOrderById(allOrders[0]._id);
+            console.log(`  getOrderById('${allOrders[0]._id}'):`, order);
 
             const customerOrders = await getOrdersByCustomerId(allOrders[0].customerId);
             console.log(`  getOrdersByCustomerId('${allOrders[0].customerId}'): count = ${customerOrders.length}`);

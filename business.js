@@ -1,7 +1,109 @@
 import * as persistence from './persistence.js'
 import dotenv from 'dotenv'
+import crypto from 'crypto'
 
 dotenv.config({ path: ['.env', 'env.exmple'] })
+
+/**
+ * Helper to verify a plain-text password against a stored password (plain or SHA-256 hashed).
+ */
+function verifyPassword(inputPassword, storedPassword) {
+    if (!inputPassword || !storedPassword) {
+        return false
+    }
+    if (storedPassword === inputPassword) {
+        return true
+    }
+    const hashedInput = crypto.createHash('sha256').update(inputPassword).digest('hex')
+    return storedPassword === hashedInput
+}
+
+/**
+ * Authenticate a user by checking both staff_users and customers collections.
+ * If valid, starts a session in MongoDB with a fixed 10-minute expiry time.
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<object|null>} Session object if valid, or null if invalid.
+ */
+export async function login(email, password) {
+    if (!email || !password) {
+        return null
+    }
+
+    let user = null
+    let userType = null
+
+    // 1. Check staff_users collection
+    const staffUser = await persistence.getStaffUserByEmail(email)
+    if (staffUser && verifyPassword(password, staffUser.password)) {
+        user = staffUser
+        userType = 'staff'
+    }
+
+    // 2. Check customers collection if not matched in staff_users
+    if (!user) {
+        const customer = await persistence.getCustomerByEmail(email)
+        if (customer && verifyPassword(password, customer.password)) {
+            user = customer
+            userType = 'customer'
+        }
+    }
+
+    if (!user) {
+        return null
+    }
+
+    // Fixed 10-minute expiry time (10 * 60 * 1000 ms)
+    const sessionKey = crypto.randomUUID()
+    const expiry = new Date(Date.now() + 10 * 60 * 1000)
+
+    const sessionData = {
+        sessionKey: sessionKey,
+        expiry: expiry,
+        userType: userType,
+        data: {
+            userId: user._id,
+            email: user.email,
+            name: user.name || user.email,
+            userType: userType
+        }
+    }
+
+    await persistence.saveSession(sessionData)
+    return sessionData
+}
+export const authenticateUser = login
+
+/**
+ * Retrieve an active session by sessionKey.
+ * If the session does not exist or has passed its fixed 10-minute expiry, deletes it and returns null.
+ * @param {string} sessionKey
+ * @returns {Promise<object|null>}
+ */
+export async function getSession(sessionKey) {
+    if (!sessionKey) {
+        return null
+    }
+    const session = await persistence.getSession(sessionKey)
+    if (!session) {
+        return null
+    }
+    if (new Date() > new Date(session.expiry)) {
+        await persistence.deleteSession(sessionKey)
+        return null
+    }
+    return session
+}
+
+/**
+ * Terminate a session by sessionKey.
+ * @param {string} sessionKey
+ */
+export async function logout(sessionKey) {
+    if (sessionKey) {
+        await persistence.deleteSession(sessionKey)
+    }
+}
 
 /**
  * Get all services
