@@ -67,6 +67,43 @@ app.use(async (req, res, next) => {
     }
 });
 
+/**
+ * Middleware to protect staff-only routes.
+ * Blocks unauthenticated users and logged-in customers.
+ */
+function requireStaff(req, res, next) {
+    if (!req.session) {
+        return res.redirect('/login');
+    }
+    if (req.session.userType !== 'staff') {
+        return res.status(403).send('Access Denied: Staff only.');
+    }
+    next();
+}
+
+/**
+ * Helper to fetch all orders and enrich them with customer names and formatted dates.
+ */
+async function getEnrichedOrders() {
+    const orders = await business.getAllOrders();
+    return await Promise.all(
+        (orders || []).map(async (order) => {
+            let customerName = order.customerName;
+            if (!customerName && order.customerId) {
+                const cust = await business.getCustomerById(order.customerId);
+                customerName = cust?.name || String(order.customerId);
+            }
+            return {
+                ...order,
+                _id: String(order._id),
+                orderId: String(order._id),
+                customerName: customerName || 'N/A',
+                date: order.orderDate || order.date || 'N/A'
+            };
+        })
+    );
+}
+
 // 2. Routes & Views
 
 /**
@@ -111,7 +148,7 @@ app.post('/login', async (req, res, next) => {
 /**
  * Route GET /dashboard (Customer / Staff Dashboard)
  * For logged-in customers: displays only their specific orders (Order ID, Date, Status, Total QAR).
- * For logged-in staff: displays staff role status.
+ * For logged-in staff: displays all current orders with status update actions.
  */
 app.get('/dashboard', async (req, res, next) => {
     try {
@@ -129,6 +166,16 @@ app.get('/dashboard', async (req, res, next) => {
                 user: session.data,
                 customer: customer,
                 orders: customer?.orders || []
+            });
+        }
+
+        if (session.userType === 'staff') {
+            const enrichedOrders = await getEnrichedOrders();
+            return res.render('dashboard', {
+                isStaff: true,
+                userType: session.userType,
+                user: session.data,
+                orders: enrichedOrders
             });
         }
 
@@ -179,19 +226,19 @@ app.get('/services', async (req, res, next) => {
 });
 
 /**
- * Route /customer (Find Customer Search Form)
- * Renders the search form allowing the user to search by phone number.
+ * Route /customer (Find Customer Search Form - Staff Only)
+ * Renders the search form allowing staff to search by phone number.
  */
-app.get('/customer', (req, res) => {
+app.get('/customer', requireStaff, (req, res) => {
     res.render('customer');
 });
 
 /**
- * Route /find-results (Customer Search Results)
+ * Route /find-results (Customer Search Results - Staff Only)
  * Fetches customer details and orders via the business layer.
  * Displays customer info if found, or an error message if not found.
  */
-app.get('/find-results', async (req, res, next) => {
+app.get('/find-results', requireStaff, async (req, res, next) => {
     try {
         const phone = req.query.phone?.trim() || req.query.phone_number?.trim() || req.query.phoneNumber?.trim();
 
@@ -211,31 +258,12 @@ app.get('/find-results', async (req, res, next) => {
 });
 
 /**
- * Route /orders (Orders Summary Page)
+ * Route /orders (Orders Summary Page - Staff Only)
  * Fetches all orders, populates customer names, and renders the orders table with status classes.
  */
-app.get('/orders', async (req, res, next) => {
+app.get('/orders', requireStaff, async (req, res, next) => {
     try {
-        const orders = await business.getAllOrders();
-
-        // Enrich orders with customer names and formatted dates
-        const enrichedOrders = await Promise.all(
-            (orders || []).map(async (order) => {
-                let customerName = order.customerName;
-                if (!customerName && order.customerId) {
-                    const cust = await business.getCustomerById(order.customerId);
-                    customerName = cust?.name || String(order.customerId);
-                }
-                return {
-                    ...order,
-                    _id: String(order._id),
-                    orderId: String(order._id),
-                    customerName: customerName || 'N/A',
-                    date: order.orderDate || order.date || 'N/A'
-                };
-            })
-        );
-
+        const enrichedOrders = await getEnrichedOrders();
         res.render('orders', { orders: enrichedOrders });
     } catch (err) {
         next(err);
@@ -243,10 +271,10 @@ app.get('/orders', async (req, res, next) => {
 });
 
 /**
- * Route GET /update-status (Status Modification Form)
+ * Route GET /update-status (Status Modification Form - Staff Only)
  * Displays order ID and status selection dropdown.
  */
-app.get('/update-status', async (req, res, next) => {
+app.get('/update-status', requireStaff, async (req, res, next) => {
     try {
         const orderId = req.query.order?.trim() || req.query.orderId?.trim() || req.query._id?.trim();
 
@@ -271,12 +299,12 @@ app.get('/update-status', async (req, res, next) => {
 });
 
 /**
- * Route POST /update-status (Status Modification Action)
+ * Route POST /update-status (Status Modification Action - Staff Only)
  * Validates state transition against business rules.
  * If invalid: responds with "Invalid State".
- * If valid: updates order in database and redirects to /orders (PRG pattern).
+ * If valid: updates order in database and redirects to /dashboard (PRG pattern).
  */
-app.post('/update-status', async (req, res, next) => {
+app.post('/update-status', requireStaff, async (req, res, next) => {
     try {
         const orderId = req.body.orderId?.trim() || req.body.order?.trim() || req.body._id?.trim();
         const newStatus = req.body.newStatus?.trim() || req.body.status?.trim();
@@ -291,7 +319,7 @@ app.post('/update-status', async (req, res, next) => {
         }
 
         // Post/Redirect/Get pattern
-        res.redirect('/orders');
+        res.redirect('/dashboard');
     } catch (err) {
         next(err);
     }

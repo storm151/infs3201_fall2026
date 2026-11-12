@@ -15,11 +15,14 @@
         <a href="/dashboard">Dashboard</a>
         <a href="/services">Services</a>
         <a href="/logout">Logout</a>
+        {{else if isStaff}}
+        <a href="/services">Services</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/customer">Search Customers</a>
+        <a href="/logout">Logout</a>
         {{else}}
         <a href="/">Home</a>
         <a href="/services">Services</a>
-        <a href="/customer">Find Customer</a>
-        <a href="/orders">Orders</a>
         <a href="/login">Login</a>
         {{/if}}
     </nav>
