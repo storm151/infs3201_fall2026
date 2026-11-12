@@ -28,3 +28,19 @@ td {
 .status-Received {
     color: orange;
 }
+
+.error-message {
+    color: red;
+}
+
+.search-results {
+    margin-top: 20px;
+}
+
+.form-group {
+    margin-top: 8px;
+}
+
+.form-actions {
+    margin-top: 12px;
+}

@@ -9,12 +9,12 @@
 
 {{!-- Display Error Message if customer is not found --}}
 {{#if error}}
-<p style="color: red;">{{error}}</p>
+<p class="error-message">{{error}}</p>
 {{/if}}
 
 {{!-- Display Customer Information & Orders if customer is found --}}
 {{#if customer}}
-<div style="margin-top: 20px;">
+<div class="search-results">
     <h2>Search results</h2>
     <p><strong>Name: {{customer.name}}</strong> Orders:</p>
 
