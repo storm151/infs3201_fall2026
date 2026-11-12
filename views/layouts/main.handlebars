@@ -11,11 +11,17 @@
 <body>
     {{!-- Mandatory Layout Navigation Menu --}}
     <nav>
+        {{#if isCustomer}}
+        <a href="/dashboard">Dashboard</a>
+        <a href="/services">Services</a>
+        <a href="/logout">Logout</a>
+        {{else}}
         <a href="/">Home</a>
         <a href="/services">Services</a>
         <a href="/customer">Find Customer</a>
         <a href="/orders">Orders</a>
         <a href="/login">Login</a>
+        {{/if}}
     </nav>
     <hr>
 

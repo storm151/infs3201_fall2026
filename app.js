@@ -44,6 +44,29 @@ app.use((req, res, next) => {
     next();
 });
 
+// Populate session state into req.session and res.locals for layout navigation
+app.use(async (req, res, next) => {
+    try {
+        const sessionKey = req.cookies?.session;
+        if (sessionKey) {
+            const session = await business.getSession(sessionKey);
+            if (session) {
+                req.session = session;
+                res.locals.session = session;
+                res.locals.user = session.data;
+                res.locals.userType = session.userType;
+                res.locals.isCustomer = session.userType === 'customer';
+                res.locals.isStaff = session.userType === 'staff';
+            } else {
+                res.clearCookie('session');
+            }
+        }
+        next();
+    } catch (err) {
+        next(err);
+    }
+});
+
 // 2. Routes & Views
 
 /**
@@ -86,17 +109,27 @@ app.post('/login', async (req, res, next) => {
 });
 
 /**
- * Route GET /dashboard (Temporary Post-Login Page)
- * Displays whether the logged-in user is a "staff" or "customer".
+ * Route GET /dashboard (Customer / Staff Dashboard)
+ * For logged-in customers: displays only their specific orders (Order ID, Date, Status, Total QAR).
+ * For logged-in staff: displays staff role status.
  */
 app.get('/dashboard', async (req, res, next) => {
     try {
-        const sessionKey = req.cookies?.session;
-        const session = await business.getSession(sessionKey);
+        const session = req.session;
 
         if (!session) {
-            res.clearCookie('session');
             return res.redirect('/login');
+        }
+
+        if (session.userType === 'customer') {
+            const customer = await business.getCustomerInformationById(session.data.userId);
+            return res.render('dashboard', {
+                isCustomer: true,
+                userType: session.userType,
+                user: session.data,
+                customer: customer,
+                orders: customer?.orders || []
+            });
         }
 
         res.render('dashboard', {

@@ -146,6 +146,28 @@ export const getCustomer = getCustomerInformation
 export const getCustomerInformationByPhone = getCustomerInformation
 
 /**
+ * Get customer information and their associated orders by customer _id
+ */
+export async function getCustomerInformationById(customerId) {
+    let customer = await persistence.getCustomerById(customerId)
+    if (!customer) {
+        return null
+    }
+    let orders = await persistence.getOrdersByCustomerId(customer._id)
+    for (let ord of orders) {
+        ord._id = String(ord._id)
+        ord.orderId = ord.orderId || String(ord._id)
+        ord.order = ord.orderId
+        ord.date = ord.orderDate
+        if (ord.total === undefined) {
+            ord.total = await computeOrderTotal(ord.items || [])
+        }
+    }
+    customer.orders = orders
+    return customer
+}
+
+/**
  * Get a customer by phone number
  */
 export async function getCustomerByPhone(phone) {

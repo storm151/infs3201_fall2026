@@ -1,4 +1,34 @@
+{{#if isCustomer}}
+<h1>Customer Dashboard</h1>
+<p>Welcome, <strong>{{user.name}}</strong></p>
+
+<h2>Your Orders</h2>
+{{#if orders.length}}
+<table>
+    <thead>
+        <tr>
+            <th>Order ID</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Total QAR</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#each orders}}
+        <tr>
+            <td>{{#if this._id}}{{this._id}}{{else}}{{this.orderId}}{{/if}}</td>
+            <td>{{#if this.date}}{{this.date}}{{else}}{{this.orderDate}}{{/if}}</td>
+            <td class="status-{{this.status}}">{{this.status}}</td>
+            <td>{{this.total}} QAR</td>
+        </tr>
+        {{/each}}
+    </tbody>
+</table>
+{{else}}
+<p>You have no orders.</p>
+{{/if}}
+{{else}}
 <h1>Welcome</h1>
 <p>You are logged in as: <strong>{{userType}}</strong></p>
 <p><a href="/logout">Logout</a></p>
-
+{{/if}}
