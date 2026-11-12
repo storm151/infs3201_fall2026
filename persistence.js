@@ -209,6 +209,17 @@ export async function deleteSession(sessionKey) {
     );
 }
 
+/**
+ * Updates the expiry time of a session document by its sessionKey.
+ */
+export async function updateSessionExpiry(sessionKey, newExpiry) {
+    const database = await getDatabase();
+    await database.collection('sessions').updateOne(
+        { sessionKey: sessionKey },
+        { $set: { expiry: newExpiry } }
+    );
+}
+
 async function testPersistence() {
     console.log('--- Starting Persistence Tests ---');
     try {

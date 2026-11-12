@@ -20,7 +20,7 @@ function verifyPassword(inputPassword, storedPassword) {
 
 /**
  * Authenticate a user by checking both staff_users and customers collections.
- * If valid, starts a session in MongoDB with a fixed 10-minute expiry time.
+ * If valid, starts a session in MongoDB with an initial 10-minute expiry time (sliding window).
  * @param {string} email
  * @param {string} password
  * @returns {Promise<object|null>} Session object if valid, or null if invalid.
@@ -53,7 +53,7 @@ export async function login(email, password) {
         return null
     }
 
-    // Fixed 10-minute expiry time (10 * 60 * 1000 ms)
+    // Initial 10-minute expiry time (10 * 60 * 1000 ms), extended on activity
     const sessionKey = crypto.randomUUID()
     const expiry = new Date(Date.now() + 10 * 60 * 1000)
 
@@ -76,7 +76,8 @@ export const authenticateUser = login
 
 /**
  * Retrieve an active session by sessionKey.
- * If the session does not exist or has passed its fixed 10-minute expiry, deletes it and returns null.
+ * If the session does not exist or has passed its expiry, deletes it and returns null.
+ * If valid, extends the session expiry by 10 minutes (sliding window).
  * @param {string} sessionKey
  * @returns {Promise<object|null>}
  */
@@ -92,6 +93,12 @@ export async function getSession(sessionKey) {
         await persistence.deleteSession(sessionKey)
         return null
     }
+
+    // Sliding 10-minute window: extend expiry by 10 minutes from now
+    const newExpiry = new Date(Date.now() + 10 * 60 * 1000)
+    session.expiry = newExpiry
+    await persistence.updateSessionExpiry(sessionKey, newExpiry)
+
     return session
 }
 

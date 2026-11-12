@@ -51,6 +51,11 @@ app.use(async (req, res, next) => {
         if (sessionKey) {
             const session = await business.getSession(sessionKey);
             if (session) {
+                // Refresh the cookie expiration in the browser to match the sliding window
+                res.cookie('session', session.sessionKey, {
+                    expires: session.expiry,
+                    httpOnly: true
+                });
                 req.session = session;
                 res.locals.session = session;
                 res.locals.user = session.data;
@@ -118,7 +123,7 @@ app.get('/login', (req, res) => {
  * Route POST /login (Authentication & Session Start)
  * Checks both customers and staff_users collections.
  * If invalid: displays an error message on the login page.
- * If valid: creates a MongoDB session with a fixed 10-minute expiry and redirects to /dashboard.
+ * If valid: creates a MongoDB session with a 10-minute sliding window expiry and redirects to /dashboard.
  */
 app.post('/login', async (req, res, next) => {
     try {
