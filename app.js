@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as business from './business.js';
 
-dotenv.config({ path: ['.env', 'env.exmple'] });
+dotenv.config({ path: ['.env'] });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,7 +101,6 @@ async function getEnrichedOrders() {
             return {
                 ...order,
                 _id: String(order._id),
-                orderId: String(order._id),
                 customerName: customerName || 'N/A',
                 date: order.orderDate || order.date || 'N/A'
             };
@@ -281,7 +280,7 @@ app.get('/orders', requireStaff, async (req, res, next) => {
  */
 app.get('/update-status', requireStaff, async (req, res, next) => {
     try {
-        const orderId = req.query.order?.trim() || req.query.orderId?.trim() || req.query._id?.trim();
+        const orderId = req.query.order?.trim() || req.query._id?.trim();
 
         if (!orderId) {
             return res.status(400).send('Order ID is required.');
@@ -294,7 +293,6 @@ app.get('/update-status', requireStaff, async (req, res, next) => {
 
         res.render('update-status', {
             _id: String(order._id),
-            orderId: String(order._id),
             order: order,
             states: ['Received', 'Washing', 'Ready', 'Delivered']
         });
@@ -311,7 +309,7 @@ app.get('/update-status', requireStaff, async (req, res, next) => {
  */
 app.post('/update-status', requireStaff, async (req, res, next) => {
     try {
-        const orderId = req.body.orderId?.trim() || req.body.order?.trim() || req.body._id?.trim();
+        const orderId = req.body._id?.trim() || req.body.order?.trim();
         const newStatus = req.body.newStatus?.trim() || req.body.status?.trim();
 
         if (!orderId || !newStatus) {

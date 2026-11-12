@@ -16,7 +16,7 @@
     <tbody>
         {{#each orders}}
         <tr>
-            <td>{{#if this._id}}{{this._id}}{{else}}{{this.orderId}}{{/if}}</td>
+            <td>{{this._id}}</td>
             <td>{{#if this.date}}{{this.date}}{{else}}{{this.orderDate}}{{/if}}</td>
             <td class="status-{{this.status}}">{{this.status}}</td>
             <td>{{this.total}} QAR</td>
@@ -43,11 +43,11 @@
     <tbody>
         {{#each orders}}
         <tr>
-            <td>{{#if this._id}}{{this._id}}{{else}}{{this.orderId}}{{/if}}</td>
-            <td>{{#if this.customerName}}{{this.customerName}}{{else if this.name}}{{this.name}}{{else if this.customer}}{{this.customer}}{{else}}{{this.customerId}}{{/if}}</td>
+            <td>{{this._id}}</td>
+            <td>{{this.customerName}}</td>
             <td>{{#if this.date}}{{this.date}}{{else}}{{this.orderDate}}{{/if}}</td>
             <td class="status-{{this.status}}">{{this.status}}</td>
-            <td><a href="/update-status?order={{#if this._id}}{{this._id}}{{else}}{{this.orderId}}{{/if}}">Update Status</a></td>
+            <td><a href="/update-status?order={{this._id}}">Update Status</a></td>
         </tr>
         {{/each}}
     </tbody>

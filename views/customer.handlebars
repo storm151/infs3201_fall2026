@@ -20,7 +20,7 @@
 
     <ul>
         {{#each customer.orders}}
-        <li>{{#if this._id}}{{this._id}}{{else}}{{this.orderId}}{{/if}}, {{this.orderDate}}, {{this.status}}, total: {{this.total}}</li>
+        <li>{{this._id}}, {{this.orderDate}}, {{this.status}}, total: {{this.total}}</li>
         {{/each}}
     </ul>
 </div>

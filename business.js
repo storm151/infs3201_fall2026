@@ -2,10 +2,13 @@ import * as persistence from './persistence.js'
 import dotenv from 'dotenv'
 import crypto from 'crypto'
 
-dotenv.config({ path: ['.env', 'env.exmple'] })
+dotenv.config({ path: ['.env'] })
 
 /**
  * Helper to verify a plain-text password against a stored password (plain or SHA-256 hashed).
+ * @param {string} inputPassword - The plain-text password entered by the user.
+ * @param {string} storedPassword - The password stored in the database.
+ * @returns {boolean} True if the password matches, false otherwise.
  */
 function verifyPassword(inputPassword, storedPassword) {
     if (!inputPassword || !storedPassword) {
@@ -113,8 +116,8 @@ export async function logout(sessionKey) {
 }
 
 /**
- * Get all services
- * @returns A list of Objects
+ * Get all services.
+ * @returns {Promise<Array<object>>} A list of service objects.
  */
 export async function getServices() {
     return await persistence.getAllServices()
@@ -122,7 +125,9 @@ export async function getServices() {
 export const getAllServices = getServices
 
 /**
- * Get a single service by serviceId
+ * Get a single service by its MongoDB _id.
+ * @param {string|object} serviceId - The service _id.
+ * @returns {Promise<object|null>} The service document, or null if not found.
  */
 export async function getService(serviceId) {
     return await persistence.getServiceById(serviceId)
@@ -130,7 +135,9 @@ export async function getService(serviceId) {
 export const getServiceById = getService
 
 /**
- * Get customer information and their associated orders by phone number
+ * Get customer information and their associated orders by phone number.
+ * @param {string} phone - The customer's phone number.
+ * @returns {Promise<object|null>} The customer object with an attached orders array, or null if not found.
  */
 export async function getCustomerInformation(phone) {
     let customer = await persistence.getCustomerByPhone(phone)
@@ -139,8 +146,7 @@ export async function getCustomerInformation(phone) {
     }
     let orders = await persistence.getOrdersByCustomerId(customer._id)
     for (let ord of orders) {
-        ord.orderId = ord.orderId || String(ord._id)
-        ord.order = ord.orderId
+        ord._id = String(ord._id)
         ord.date = ord.orderDate
         if (ord.total === undefined) {
             ord.total = await computeOrderTotal(ord.items || [])
@@ -153,7 +159,9 @@ export const getCustomer = getCustomerInformation
 export const getCustomerInformationByPhone = getCustomerInformation
 
 /**
- * Get customer information and their associated orders by customer _id
+ * Get customer information and their associated orders by customer _id.
+ * @param {string|object} customerId - The customer's MongoDB _id.
+ * @returns {Promise<object|null>} The customer object with an attached orders array, or null if not found.
  */
 export async function getCustomerInformationById(customerId) {
     let customer = await persistence.getCustomerById(customerId)
@@ -163,8 +171,6 @@ export async function getCustomerInformationById(customerId) {
     let orders = await persistence.getOrdersByCustomerId(customer._id)
     for (let ord of orders) {
         ord._id = String(ord._id)
-        ord.orderId = ord.orderId || String(ord._id)
-        ord.order = ord.orderId
         ord.date = ord.orderDate
         if (ord.total === undefined) {
             ord.total = await computeOrderTotal(ord.items || [])
@@ -175,21 +181,26 @@ export async function getCustomerInformationById(customerId) {
 }
 
 /**
- * Get a customer by phone number
+ * Get a customer by phone number.
+ * @param {string} phone - The customer's phone number.
+ * @returns {Promise<object|null>} The customer document, or null if not found.
  */
 export async function getCustomerByPhone(phone) {
     return await persistence.getCustomerByPhone(phone)
 }
 
 /**
- * Get a customer by customerId (_id)
+ * Get a customer by their MongoDB _id.
+ * @param {string|object} cid - The customer's _id.
+ * @returns {Promise<object|null>} The customer document, or null if not found.
  */
 export async function getCustomerById(cid) {
     return await persistence.getCustomerById(cid)
 }
 
 /**
- * Get all customers
+ * Get all customers.
+ * @returns {Promise<Array<object>>} A list of all customer documents.
  */
 export async function getAllCustomers() {
     return await persistence.getAllCustomers()
@@ -197,24 +208,27 @@ export async function getAllCustomers() {
 export const getCustomers = getAllCustomers
 
 /**
- * Get all orders
+ * Get all orders with stringified _id values.
+ * @returns {Promise<Array<object>>} A list of all order documents.
  */
 export async function getAllOrders() {
     const orders = await persistence.getAllOrders()
     for (const ord of orders) {
-        ord.orderId = ord.orderId || String(ord._id)
+        ord._id = String(ord._id)
     }
     return orders
 }
 export const getOrders = getAllOrders
 
 /**
- * Get order details by orderId (_id)
+ * Get order details by MongoDB _id.
+ * @param {string|object} oid - The order's _id.
+ * @returns {Promise<object|null>} The order document, or null if not found.
  */
 export async function getOrderDetails(oid) {
     const order = await persistence.getOrderById(oid)
     if (order) {
-        order.orderId = order.orderId || String(order._id)
+        order._id = String(order._id)
     }
     return order
 }
@@ -243,6 +257,11 @@ export async function updateOrderStatus(oid, newStatus) {
     return true
 }
 
+/**
+ * Compute the total price in QAR for an array of order items, applying minimum order and delivery charges.
+ * @param {Array<{serviceId: string|object, quantity: number}>} orderItems - The items in the order.
+ * @returns {Promise<number>} The total order amount in QAR.
+ */
 async function computeOrderTotal(orderItems) {
     let total = 0
     for (let item of orderItems) {
@@ -264,8 +283,10 @@ async function computeOrderTotal(orderItems) {
 }
 
 /**
- * Interact with the customer to create a new order then save it to the storage.
- * @returns 
+ * Create a new order for a customer and save it to MongoDB.
+ * @param {string|object} customerId - The customer's MongoDB _id.
+ * @param {Array<{serviceId: string|object, quantity: number}>} orderItems - The items to include in the order.
+ * @returns {Promise<object|null>} The newly created order object, or null if customer or service is invalid.
  */
 export async function createNewOrder(customerId, orderItems) {
     let customer = await persistence.getCustomerById(customerId)
@@ -294,6 +315,11 @@ export async function createNewOrder(customerId, orderItems) {
     return order
 }
 
+/**
+ * Compute subtotal, minimum order adjustment, delivery charge, and grand total for priced order items.
+ * @param {Array<{quantity: number, price: number}>} items - Priced items in the order.
+ * @returns {{subTotal: number, minOrderAdjustment: number, deliveryCharge: number, total: number}} Calculated totals breakdown.
+ */
 function computeSubTotals(items) {
     const minimum_charge = Number(process.env.MINIMUM_ORDER_CHARGE) || 0
     const free_delivery_threshold = Number(process.env.FREE_DELIVERY_THRESHOLD) || 0
@@ -320,6 +346,11 @@ function computeSubTotals(items) {
     }
 }
 
+/**
+ * Generate a detailed invoice object for a given order _id.
+ * @param {string|object} orderId - The order's MongoDB _id.
+ * @returns {Promise<object|null>} The formatted invoice details, or null if the order does not exist.
+ */
 export async function generateInvoice(orderId) {
     let orderDetails = await persistence.getOrderById(orderId)
     if (!orderDetails) {
@@ -337,7 +368,7 @@ export async function generateInvoice(orderId) {
         })
     }
     let totals = computeSubTotals(serviceItems)
-    const resolvedOrderId = orderDetails.orderId || String(orderDetails._id)
+    const resolvedOrderId = String(orderDetails._id)
     return {
         order: resolvedOrderId,
         date: orderDetails.orderDate,

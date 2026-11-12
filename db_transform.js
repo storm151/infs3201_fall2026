@@ -3,8 +3,13 @@ import dotenv from 'dotenv';
 import dns from 'dns';
 
 dns.setServers(['8.8.8.8', '8.8.4.4']);
-dotenv.config({ path: ['.env', 'env.exmple'] });
+dotenv.config({ path: ['.env'] });
 
+/**
+ * Connects to MongoDB, maps legacy string IDs (customerId, serviceId, orderId) to MongoDB ObjectIds (_id),
+ * updates relational references in orders, and removes the deprecated string ID fields across collections.
+ * @returns {Promise<void>}
+ */
 async function migrateDatabaseIds() {
     const uri = process.env.MONGO_URI;
     const dbName = process.env.MONGO_DB_NAME;

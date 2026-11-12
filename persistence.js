@@ -4,7 +4,7 @@ import dns from "dns";
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
-dotenv.config({ path: ['.env', 'env.exmple'] });
+dotenv.config({ path: ['.env'] });
 
 // Load environment variables safely inside getDatabase
 let client;
@@ -12,6 +12,8 @@ let db;
 
 /**
  * Helper to convert string IDs to MongoDB ObjectId when valid.
+ * @param {string|ObjectId} id - The ID to convert.
+ * @returns {ObjectId|string} The converted ObjectId or original value.
  */
 function toObjectId(id) {
     if (id instanceof ObjectId) {
@@ -26,6 +28,7 @@ function toObjectId(id) {
 /**
  * Connects to MongoDB and caches the database instance.
  * Returns the cached database connection on subsequent calls.
+ * @returns {Promise<import('mongodb').Db>} The MongoDB database instance.
  */
 async function getDatabase() {
     if (db) {
@@ -43,6 +46,8 @@ async function getDatabase() {
 
 /**
  * Finds a single customer by _id.
+ * @param {string|ObjectId} customerId - The customer's MongoDB _id.
+ * @returns {Promise<object|null>} The customer document, or null if not found.
  */
 export async function getCustomerById(customerId) {
     const database = await getDatabase();
@@ -55,6 +60,8 @@ export const getCustomer = getCustomerById;
 
 /**
  * Finds a single customer by phone number.
+ * @param {string} phone - The customer's phone number.
+ * @returns {Promise<object|null>} The customer document, or null if not found.
  */
 export async function getCustomerByPhone(phone) {
     const database = await getDatabase();
@@ -66,6 +73,7 @@ export async function getCustomerByPhone(phone) {
 
 /**
  * Retrieves all customers from the database.
+ * @returns {Promise<Array<object>>} A list of all customer documents.
  */
 export async function getAllCustomers() {
     const database = await getDatabase();
@@ -78,6 +86,7 @@ export const getCustomers = getAllCustomers;
 
 /**
  * Retrieves all laundry services.
+ * @returns {Promise<Array<object>>} A list of all service documents.
  */
 export async function getAllServices() {
     const database = await getDatabase();
@@ -90,6 +99,8 @@ export const getServices = getAllServices;
 
 /**
  * Finds a single service by _id.
+ * @param {string|ObjectId} serviceId - The service's MongoDB _id.
+ * @returns {Promise<object|null>} The service document, or null if not found.
  */
 export async function getServiceById(serviceId) {
     const database = await getDatabase();
@@ -103,6 +114,7 @@ export const getService = getServiceById;
 /**
  * Retrieves all orders.
  * Converts cursor to array using .toArray().
+ * @returns {Promise<Array<object>>} A list of all order documents.
  */
 export async function getAllOrders() {
     const database = await getDatabase();
@@ -115,6 +127,8 @@ export const getOrders = getAllOrders;
 
 /**
  * Finds a single order by _id.
+ * @param {string|ObjectId} orderId - The order's MongoDB _id.
+ * @returns {Promise<object|null>} The order document, or null if not found.
  */
 export async function getOrderById(orderId) {
     const database = await getDatabase();
@@ -127,6 +141,8 @@ export const getOrderDetails = getOrderById;
 
 /**
  * Finds all orders belonging to a specific customer _id.
+ * @param {string|ObjectId} customerId - The customer's MongoDB _id.
+ * @returns {Promise<Array<object>>} A list of matching order documents.
  */
 export async function getOrdersByCustomerId(customerId) {
     const database = await getDatabase();
@@ -138,6 +154,9 @@ export async function getOrdersByCustomerId(customerId) {
 
 /**
  * Updates the status of a single order by _id.
+ * @param {string|ObjectId} orderId - The order's MongoDB _id.
+ * @param {string} newStatus - The new order status.
+ * @returns {Promise<boolean>} True if the document was modified, false otherwise.
  */
 export async function updateOrderStatus(orderId, newStatus) {
     const database = await getDatabase();
@@ -150,6 +169,8 @@ export async function updateOrderStatus(orderId, newStatus) {
 
 /**
  * Inserts a new order document into MongoDB.
+ * @param {object} newOrder - The order document to insert.
+ * @returns {Promise<boolean>} True if the insert was acknowledged.
  */
 export async function saveOrder(newOrder) {
     const database = await getDatabase();
@@ -159,6 +180,8 @@ export async function saveOrder(newOrder) {
 
 /**
  * Finds a single customer by email address.
+ * @param {string} email - The customer's email address.
+ * @returns {Promise<object|null>} The customer document, or null if not found.
  */
 export async function getCustomerByEmail(email) {
     const database = await getDatabase();
@@ -170,6 +193,8 @@ export async function getCustomerByEmail(email) {
 
 /**
  * Finds a single staff user by email address from the staff_users collection.
+ * @param {string} email - The staff user's email address.
+ * @returns {Promise<object|null>} The staff user document, or null if not found.
  */
 export async function getStaffUserByEmail(email) {
     const database = await getDatabase();
@@ -181,6 +206,8 @@ export async function getStaffUserByEmail(email) {
 
 /**
  * Saves a new session document in the sessions collection in MongoDB.
+ * @param {object} sessionData - The session object to persist.
+ * @returns {Promise<object>} The saved session object.
  */
 export async function saveSession(sessionData) {
     const database = await getDatabase();
@@ -190,6 +217,8 @@ export async function saveSession(sessionData) {
 
 /**
  * Retrieves a session document by its sessionKey.
+ * @param {string} sessionKey - The unique session identifier.
+ * @returns {Promise<object|null>} The session document, or null if not found.
  */
 export async function getSession(sessionKey) {
     const database = await getDatabase();
@@ -201,6 +230,8 @@ export async function getSession(sessionKey) {
 
 /**
  * Deletes a session document by its sessionKey.
+ * @param {string} sessionKey - The unique session identifier to delete.
+ * @returns {Promise<void>}
  */
 export async function deleteSession(sessionKey) {
     const database = await getDatabase();
@@ -211,6 +242,9 @@ export async function deleteSession(sessionKey) {
 
 /**
  * Updates the expiry time of a session document by its sessionKey.
+ * @param {string} sessionKey - The unique session identifier.
+ * @param {Date} newExpiry - The updated expiration timestamp.
+ * @returns {Promise<void>}
  */
 export async function updateSessionExpiry(sessionKey, newExpiry) {
     const database = await getDatabase();
@@ -219,97 +253,3 @@ export async function updateSessionExpiry(sessionKey, newExpiry) {
         { $set: { expiry: newExpiry } }
     );
 }
-
-async function testPersistence() {
-    console.log('--- Starting Persistence Tests ---');
-    try {
-        // 1. Check Configuration & Connection
-        console.log('\n[1] Environment & Connection:');
-        console.log('  MONGO_URI defined:', !!process.env.MONGO_URI);
-        console.log('  MONGO_DB_NAME env:', process.env.MONGO_DB_NAME);
-        console.log('  dbname env:', process.env.dbname);
-
-        const database = await getDatabase();
-        if (!database) {
-            console.error('  Could not connect to database!');
-            return;
-        }
-        console.log('  Connected database name:', database.databaseName);
-
-        // List collections in active database
-        const collections = await database.listCollections().toArray();
-        const collectionNames = collections.map(c => c.name);
-        console.log('  Collections in connected DB:', collectionNames);
-
-        // Check if database name mismatch is likely
-        if (process.env.MONGO_DB_NAME === undefined && process.env.dbname) {
-            console.warn('\n⚠️  WARNING: process.env.MONGO_DB_NAME is undefined in environment variables.');
-            console.warn(`    Your .env file defines "dbname=${process.env.dbname}" instead of "MONGO_DB_NAME".`);
-            console.warn(`    Because of this, MongoDB is connecting to the fallback database "${database.databaseName}", which is empty!`);
-
-            console.log(`\n  Inspecting "${process.env.dbname}" directly to verify:`);
-            const targetDb = client.db(process.env.dbname);
-            const targetCollections = (await targetDb.listCollections().toArray()).map(c => c.name);
-            console.log(`  Collections in "${process.env.dbname}":`, targetCollections);
-            const targetCustomers = await targetDb.collection('customers').find({}, { projection: { _id: 0 } }).toArray();
-            console.log(`  Customers count in "${process.env.dbname}": ${targetCustomers.length}`);
-            if (targetCustomers.length > 0) {
-                console.log('  Customer IDs found in correct DB:', targetCustomers.map(c => c.customerId));
-            }
-        }
-
-        // 2. Test getAllCustomers()
-        console.log('\n[2] Testing getAllCustomers():');
-        const allCustomers = await getAllCustomers();
-        console.log(`  Total customers found: ${allCustomers.length}`);
-        if (allCustomers.length > 0) {
-            console.log('  Available customer _ids:', allCustomers.map(c => c._id));
-            console.log('  Sample customer:', allCustomers[0]);
-        }
-
-        // 3. Test getCustomerById() and getCustomerByPhone()
-        console.log('\n[3] Testing getCustomerById() & getCustomerByPhone():');
-        if (allCustomers.length > 0) {
-            const firstId = allCustomers[0]._id;
-            const customerById = await getCustomerById(firstId);
-            console.log(`  getCustomerById('${firstId}'):`, customerById);
-
-            const firstPhone = allCustomers[0].phone;
-            const customerByPhone = await getCustomerByPhone(firstPhone);
-            console.log(`  getCustomerByPhone('${firstPhone}'):`, customerByPhone);
-        }
-
-        // 4. Test getAllServices() and getServiceById()
-        console.log('\n[4] Testing Services:');
-        const allServices = await getAllServices();
-        console.log(`  Total services found: ${allServices.length}`);
-        if (allServices.length > 0) {
-            console.log('  Sample service:', allServices[0]);
-            const service = await getServiceById(allServices[0]._id);
-            console.log(`  getServiceById('${allServices[0]._id}'):`, service);
-        }
-
-        // 5. Test getAllOrders(), getOrderById(), and getOrdersByCustomerId()
-        console.log('\n[5] Testing Orders:');
-        const allOrders = await getAllOrders();
-        console.log(`  Total orders found: ${allOrders.length}`);
-        if (allOrders.length > 0) {
-            console.log('  Sample order:', allOrders[0]);
-            const order = await getOrderById(allOrders[0]._id);
-            console.log(`  getOrderById('${allOrders[0]._id}'):`, order);
-
-            const customerOrders = await getOrdersByCustomerId(allOrders[0].customerId);
-            console.log(`  getOrdersByCustomerId('${allOrders[0].customerId}'): count = ${customerOrders.length}`);
-        }
-
-    } catch (error) {
-        console.error('\n❌ Persistence Test Error:', error);
-    } finally {
-        if (client) {
-            await client.close();
-            console.log('\n--- Database connection closed. Tests complete. ---');
-        }
-    }
-}
-
-//testPersistence();

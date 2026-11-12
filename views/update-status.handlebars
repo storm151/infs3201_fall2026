@@ -1,7 +1,7 @@
-<h1>Order ID: {{#if _id}}{{_id}}{{else}}{{orderId}}{{/if}}</h1>
+<h1>Order ID: {{_id}}</h1>
 
 <form action="/update-status" method="POST">
-    <input type="hidden" name="orderId" value="{{#if _id}}{{_id}}{{else}}{{orderId}}{{/if}}">
+    <input type="hidden" name="_id" value="{{_id}}">
 
     <label for="newStatus">New Status:</label>
     <select name="newStatus" id="newStatus" required>
