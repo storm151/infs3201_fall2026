@@ -1,8 +1,15 @@
 import * as persistence from './persistence.js'
 import dotenv from 'dotenv'
 import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 dotenv.config({ path: ['.env'] })
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * Helper to verify a plain-text password against a stored password (plain or SHA-256 hashed).
@@ -254,6 +261,15 @@ export async function updateOrderStatus(oid, newStatus) {
         return false
     }
     await persistence.updateOrderStatus(oid, newStatus)
+
+    if (newStatus === 'Ready') {
+        try {
+            await generateInvoicePDF(oid)
+        } catch (err) {
+            console.error(`Failed to generate PDF invoice for order ${oid}:`, err)
+        }
+    }
+
     return true
 }
 
@@ -358,14 +374,16 @@ export async function generateInvoice(orderId) {
     }
     let customerDetails = await persistence.getCustomerById(orderDetails.customerId)
     let serviceItems = []
-    for (let it of orderDetails.items) {
+    for (let it of (orderDetails.items || [])) {
         let service = await persistence.getServiceById(it.serviceId)
-        serviceItems.push({
-            service: service.name,
-            quantity: it.quantity,
-            price: service.price,
-            lineTotal: it.quantity * service.price
-        })
+        if (service) {
+            serviceItems.push({
+                service: service.name,
+                quantity: it.quantity,
+                price: service.price,
+                lineTotal: it.quantity * service.price
+            })
+        }
     }
     let totals = computeSubTotals(serviceItems)
     const resolvedOrderId = String(orderDetails._id)
@@ -374,11 +392,207 @@ export async function generateInvoice(orderId) {
         date: orderDetails.orderDate,
         data: orderDetails.orderDate,
         status: orderDetails.status,
-        customer: customerDetails.name,
+        customer: customerDetails?.name || 'N/A',
+        customerId: customerDetails?._id ? String(customerDetails._id) : String(orderDetails.customerId || ''),
+        customerPhone: customerDetails?.phone || '',
+        customerEmail: customerDetails?.email || '',
         serviceItems: serviceItems,
         subTotal: totals.subTotal,
         minimumAdjustment: totals.minOrderAdjustment,
         delivery: totals.deliveryCharge,
         total: totals.total
     }
+}
+
+/**
+ * Generate a PDF invoice for an order using pdf-lib and save it to disk under invoices/.
+ * Reuses existing business logic (generateInvoice and computeSubTotals) and fetches real MongoDB data.
+ * @param {string|object} orderId - The order's MongoDB _id.
+ * @returns {Promise<string|null>} The absolute path to the saved PDF file, or null if order not found.
+ */
+export async function generateInvoicePDF(orderId) {
+    const invoice = await generateInvoice(orderId)
+    if (!invoice) {
+        return null
+    }
+
+    const pdfDoc = await PDFDocument.create()
+    const page = pdfDoc.addPage([595.28, 841.89]) // A4 size in points
+    const { width, height } = page.getSize()
+
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+
+    const margin = 50
+    let y = height - margin
+
+    // Header
+    page.drawText('INVOICE', {
+        x: margin,
+        y,
+        size: 22,
+        font: fontBold,
+        color: rgb(0, 0, 0)
+    })
+    y -= 30
+
+    // Order Metadata Block
+    page.drawText(`Order Number: ${invoice.order}`, {
+        x: margin,
+        y,
+        size: 11,
+        font: fontBold
+    })
+    y -= 16
+
+    page.drawText(`Order Date: ${invoice.date || 'N/A'}`, {
+        x: margin,
+        y,
+        size: 11,
+        font: fontRegular
+    })
+    y -= 16
+
+    page.drawText(`Order Status: ${invoice.status || 'Ready'}`, {
+        x: margin,
+        y,
+        size: 11,
+        font: fontRegular
+    })
+    y -= 28
+
+    // Customer Information Block
+    page.drawText('Customer Information', {
+        x: margin,
+        y,
+        size: 13,
+        font: fontBold
+    })
+    y -= 18
+
+    page.drawText(`Name: ${invoice.customer}`, {
+        x: margin,
+        y,
+        size: 11,
+        font: fontRegular
+    })
+    y -= 16
+
+    if (invoice.customerId) {
+        page.drawText(`Customer ID: ${invoice.customerId}`, {
+            x: margin,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        y -= 16
+    }
+
+    if (invoice.customerPhone) {
+        page.drawText(`Phone: ${invoice.customerPhone}`, {
+            x: margin,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        y -= 16
+    }
+
+    if (invoice.customerEmail) {
+        page.drawText(`Email: ${invoice.customerEmail}`, {
+            x: margin,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        y -= 16
+    }
+
+    y -= 16
+
+    // Line-Item Table Header
+    const colServiceX = margin
+    const colQtyX = 310
+    const colPriceX = 380
+    const colTotalX = 475
+
+    page.drawText('Service / Item', { x: colServiceX, y, size: 11, font: fontBold })
+    page.drawText('Qty', { x: colQtyX, y, size: 11, font: fontBold })
+    page.drawText('Unit Price (QAR)', { x: colPriceX, y, size: 11, font: fontBold })
+    page.drawText('Line Total (QAR)', { x: colTotalX, y, size: 11, font: fontBold })
+    y -= 8
+
+    page.drawLine({
+        start: { x: margin, y },
+        end: { x: width - margin, y },
+        thickness: 1,
+        color: rgb(0.2, 0.2, 0.2)
+    })
+    y -= 18
+
+    // Line Items
+    for (const item of invoice.serviceItems) {
+        page.drawText(String(item.service), {
+            x: colServiceX,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        page.drawText(String(item.quantity), {
+            x: colQtyX,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        page.drawText(`${Number(item.price).toFixed(2)} QAR`, {
+            x: colPriceX,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        page.drawText(`${Number(item.lineTotal).toFixed(2)} QAR`, {
+            x: colTotalX,
+            y,
+            size: 11,
+            font: fontRegular
+        })
+        y -= 18
+    }
+
+    y -= 4
+    page.drawLine({
+        start: { x: margin, y },
+        end: { x: width - margin, y },
+        thickness: 1,
+        color: rgb(0.2, 0.2, 0.2)
+    })
+    y -= 22
+
+    // Totals Block
+    const labelX = 330
+    const valueX = colTotalX
+
+    page.drawText('Subtotal:', { x: labelX, y, size: 11, font: fontRegular })
+    page.drawText(`${Number(invoice.subTotal).toFixed(2)} QAR`, { x: valueX, y, size: 11, font: fontRegular })
+    y -= 16
+
+    page.drawText('Minimum Order Adjustment:', { x: labelX, y, size: 11, font: fontRegular })
+    page.drawText(`${Number(invoice.minimumAdjustment).toFixed(2)} QAR`, { x: valueX, y, size: 11, font: fontRegular })
+    y -= 16
+
+    page.drawText('Delivery Charge:', { x: labelX, y, size: 11, font: fontRegular })
+    page.drawText(`${Number(invoice.delivery).toFixed(2)} QAR`, { x: valueX, y, size: 11, font: fontRegular })
+    y -= 20
+
+    page.drawText('Total Amount Payable:', { x: labelX, y, size: 12, font: fontBold })
+    page.drawText(`${Number(invoice.total).toFixed(2)} QAR`, { x: valueX, y, size: 12, font: fontBold })
+
+    const pdfBytes = await pdfDoc.save()
+    const invoicesDir = path.join(__dirname, 'invoices')
+    await fs.promises.mkdir(invoicesDir, { recursive: true })
+
+    const filePath = path.join(invoicesDir, `invoice-${invoice.order}.pdf`)
+    await fs.promises.writeFile(filePath, pdfBytes)
+
+    return filePath
 }
