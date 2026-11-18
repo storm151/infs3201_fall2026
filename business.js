@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import nodemailer from 'nodemailer'
 
 dotenv.config({ path: ['.env'] })
 
@@ -263,10 +264,19 @@ export async function updateOrderStatus(oid, newStatus) {
     await persistence.updateOrderStatus(oid, newStatus)
 
     if (newStatus === 'Ready') {
+        let pdfPath = null
         try {
-            await generateInvoicePDF(oid)
+            pdfPath = await generateInvoicePDF(oid)
         } catch (err) {
             console.error(`Failed to generate PDF invoice for order ${oid}:`, err)
+        }
+
+        if (pdfPath) {
+            try {
+                await sendInvoiceEmail(oid, pdfPath)
+            } catch (err) {
+                console.error(`Failed to send invoice email for order ${oid}:`, err)
+            }
         }
     }
 
@@ -595,4 +605,58 @@ export async function generateInvoicePDF(orderId) {
     await fs.promises.writeFile(filePath, pdfBytes)
 
     return filePath
+}
+
+/**
+ * Send the generated PDF invoice as an email attachment to the customer associated with the order.
+ * SMTP configuration is read from environment variables.
+ * @param {string|object} orderId - The order's MongoDB _id.
+ * @param {string|null} [pdfPath=null] - Optional path to the already-generated PDF invoice.
+ * @returns {Promise<object|null>} Nodemailer send result info, or null if customer email or invoice is missing.
+ */
+export async function sendInvoiceEmail(orderId, pdfPath = null) {
+    const invoice = await generateInvoice(orderId)
+    if (!invoice || !invoice.customerEmail) {
+        return null
+    }
+
+    const attachmentPath = pdfPath || await generateInvoicePDF(orderId)
+    if (!attachmentPath) {
+        return null
+    }
+
+    const host = process.env.SMTP_HOST || process.env.EMAIL_HOST
+    const port = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT) || 587
+    const secure = process.env.SMTP_SECURE === 'true' || port === 465
+    const user = process.env.SMTP_USER || process.env.EMAIL_USER
+    const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS
+    const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || user || 'no-reply@laundry.com'
+
+    const transporter = nodemailer.createTransport({
+        host: host,
+        port: port,
+        secure: secure,
+        auth: user && pass ? { user, pass } : undefined
+    })
+
+    const mailOptions = {
+        from: from,
+        to: invoice.customerEmail,
+        subject: `Order #${invoice.order} Ready - Laundry Invoice`,
+        text: `Dear ${invoice.customer},\n\nYour laundry for Order #${invoice.order} is now ready!\nPlease find your PDF invoice attached to this email.\n\nOrder Summary:\n- Order ID: ${invoice.order}\n- Order Date: ${invoice.date || 'N/A'}\n- Status: Ready\n- Total Amount Payable: ${Number(invoice.total).toFixed(2)} QAR\n\nThank you for choosing our laundry service.`,
+        attachments: [
+            {
+                filename: `invoice-${invoice.order}.pdf`,
+                path: attachmentPath,
+                contentType: 'application/pdf'
+            }
+        ]
+    }
+
+    const info = await transporter.sendMail(mailOptions)
+    const previewUrl = nodemailer.getTestMessageUrl(info)
+    if (previewUrl) {
+        console.log(`Invoice email sent for order ${invoice.order}. Preview URL: ${previewUrl}`)
+    }
+    return info
 }
