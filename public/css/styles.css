@@ -60,3 +60,10 @@ td {
     display: block;
     margin-top: 6px;
 }
+
+.pickup-image-thumb {
+    max-width: 120px;
+    max-height: 90px;
+    border: 1px solid #ccc;
+    display: inline-block;
+}

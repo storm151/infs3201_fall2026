@@ -3,7 +3,7 @@ import { engine } from 'express-handlebars';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import multer from 'multer';
+import fileUpload from 'express-fileupload';
 import * as business from './business.js';
 
 dotenv.config({ path: ['.env'] });
@@ -27,6 +27,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Parse URL-encoded bodies for form submissions
 app.use(express.urlencoded({ extended: true }));
+
+// Enable file uploads with a 2 MB size limit
+app.use(fileUpload({
+    limits: { fileSize: business.MAX_PICKUP_IMAGE_SIZE },
+    abortOnLimit: false
+}));
 
 // Parse cookies from request headers
 app.use((req, res, next) => {
@@ -102,27 +108,6 @@ function requireCustomer(req, res, next) {
 }
 
 /**
- * Multer configuration for pickup-location image upload:
- * - Enforces maximum file size of 2 MB
- * - Accepts only JPG (.jpg / .jpeg) files
- */
-const pickupImageUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: {
-        fileSize: business.MAX_PICKUP_IMAGE_SIZE,
-        files: 1
-    },
-    fileFilter: (req, file, cb) => {
-        const mime = (file.mimetype || '').toLowerCase();
-        const ext = path.extname(file.originalname || '').toLowerCase();
-        if ((mime === 'image/jpeg' || mime === 'image/jpg') && (ext === '.jpg' || ext === '.jpeg')) {
-            return cb(null, true);
-        }
-        cb(new Error('Only JPG (.jpg / .jpeg) image files are accepted.'));
-    }
-});
-
-/**
  * Helper to fetch all orders and enrich them with customer names and formatted dates.
  */
 async function getEnrichedOrders() {
@@ -130,14 +115,17 @@ async function getEnrichedOrders() {
     return await Promise.all(
         (orders || []).map(async (order) => {
             let customerName = order.customerName;
-            if (!customerName && order.customerId) {
+            let pickupImage = order.pickupImage || null;
+            if (order.customerId) {
                 const cust = await business.getCustomerById(order.customerId);
-                customerName = cust?.name || String(order.customerId);
+                customerName = customerName || cust?.name || String(order.customerId);
+                pickupImage = pickupImage || cust?.pickupImage || null;
             }
             return {
                 ...order,
                 _id: String(order._id),
                 customerName: customerName || 'N/A',
+                pickupImage: pickupImage,
                 date: order.orderDate || order.date || 'N/A'
             };
         })
@@ -231,48 +219,43 @@ app.get('/dashboard', async (req, res, next) => {
 
 /**
  * Route POST /upload-pickup-image (Authenticated Customer Pickup-Location Image Upload)
- * Accepts a single JPG image up to 2 MB, stores it on the server filesystem with a
- * server-managed filename, and updates the customer's record in MongoDB.
+ * Accepts a single JPG image up to 2 MB via express-fileupload, stores it on the server
+ * filesystem with a server-managed filename, and updates the customer's record in MongoDB.
  */
-app.post('/upload-pickup-image', requireCustomer, (req, res, next) => {
-    const singleUpload = pickupImageUpload.single('pickupImage');
-    singleUpload(req, res, async (uploadErr) => {
-        try {
-            const customerId = req.session.data.userId;
+app.post('/upload-pickup-image', requireCustomer, async (req, res, next) => {
+    try {
+        const customerId = req.session.data.userId;
+        const uploadedFile = req.files?.pickupImage;
 
-            if (uploadErr) {
-                const errorMessage = uploadErr.code === 'LIMIT_FILE_SIZE'
-                    ? 'File size exceeds the maximum limit of 2 MB.'
-                    : (uploadErr.message || 'Invalid image upload.');
-                const customer = await business.getCustomerInformationById(customerId);
-                return res.status(400).render('dashboard', {
-                    isCustomer: true,
-                    userType: req.session.userType,
-                    user: req.session.data,
-                    customer: customer,
-                    orders: customer?.orders || [],
-                    uploadError: errorMessage
-                });
-            }
-
-            const result = await business.saveCustomerPickupImage(customerId, req.file);
-            if (!result.success) {
-                const customer = await business.getCustomerInformationById(customerId);
-                return res.status(400).render('dashboard', {
-                    isCustomer: true,
-                    userType: req.session.userType,
-                    user: req.session.data,
-                    customer: customer,
-                    orders: customer?.orders || [],
-                    uploadError: result.error
-                });
-            }
-
-            res.redirect('/dashboard?uploaded=1');
-        } catch (err) {
-            next(err);
+        if (Array.isArray(uploadedFile)) {
+            const customer = await business.getCustomerInformationById(customerId);
+            return res.status(400).render('dashboard', {
+                isCustomer: true,
+                userType: req.session.userType,
+                user: req.session.data,
+                customer: customer,
+                orders: customer?.orders || [],
+                uploadError: 'Each customer may upload only one pickup-location image.'
+            });
         }
-    });
+
+        const result = await business.saveCustomerPickupImage(customerId, uploadedFile);
+        if (!result.success) {
+            const customer = await business.getCustomerInformationById(customerId);
+            return res.status(400).render('dashboard', {
+                isCustomer: true,
+                userType: req.session.userType,
+                user: req.session.data,
+                customer: customer,
+                orders: customer?.orders || [],
+                uploadError: result.error
+            });
+        }
+
+        res.redirect('/dashboard?uploaded=1');
+    } catch (err) {
+        next(err);
+    }
 });
 
 /**
@@ -374,9 +357,12 @@ app.get('/update-status', requireStaff, async (req, res, next) => {
             return res.status(404).send('Order not found.');
         }
 
+        const customer = order.customerId ? await business.getCustomerById(order.customerId) : null;
+
         res.render('update-status', {
             _id: String(order._id),
             order: order,
+            customer: customer,
             states: ['Received', 'Washing', 'Ready', 'Delivered']
         });
     } catch (err) {

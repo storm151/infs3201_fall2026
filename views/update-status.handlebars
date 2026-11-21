@@ -1,5 +1,15 @@
 <h1>Order ID: {{_id}}</h1>
 
+{{#if customer}}
+<p><strong>Customer:</strong> {{customer.name}} ({{customer.phone}})</p>
+{{#if customer.pickupImage}}
+<div class="pickup-image-container">
+    <p><strong>Customer Pickup Location Image:</strong></p>
+    <img src="{{customer.pickupImage}}" alt="Customer Pickup Location" class="pickup-image">
+</div>
+{{/if}}
+{{/if}}
+
 <form action="/update-status" method="POST">
     <input type="hidden" name="_id" value="{{_id}}">
 

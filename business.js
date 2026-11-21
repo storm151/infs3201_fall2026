@@ -674,7 +674,7 @@ export const MAX_PICKUP_IMAGE_SIZE = 2 * 1024 * 1024 // 2 MB
  * - Server-managed filename using UUID to prevent collisions and path traversal
  *
  * @param {string|object} customerId - The customer's MongoDB _id.
- * @param {{buffer: Buffer, mimetype: string, originalname: string, size: number}} file - The uploaded file object.
+ * @param {object} file - The uploaded file object from express-fileupload (req.files.pickupImage).
  * @returns {Promise<{success: boolean, error?: string, pickupImage?: string, filename?: string}>}
  */
 export async function saveCustomerPickupImage(customerId, file) {
@@ -687,21 +687,22 @@ export async function saveCustomerPickupImage(customerId, file) {
         return { success: false, error: 'Customer record not found.' }
     }
 
-    if (!file || !file.buffer || file.buffer.length === 0) {
+    const buf = file?.data || file?.buffer
+    if (!file || !buf || (buf.length === 0 && !file.truncated)) {
         return { success: false, error: 'Please select a JPG image file to upload.' }
     }
 
     // Enforce maximum file size of 2 MB
-    if (file.size > MAX_PICKUP_IMAGE_SIZE || file.buffer.length > MAX_PICKUP_IMAGE_SIZE) {
+    if (file.truncated || file.size > MAX_PICKUP_IMAGE_SIZE || buf.length > MAX_PICKUP_IMAGE_SIZE) {
         return { success: false, error: 'File size exceeds the maximum limit of 2 MB.' }
     }
 
     // Enforce JPG only: check MIME type, file extension, and JPEG magic bytes (FF D8 FF)
     const mime = (file.mimetype || '').toLowerCase()
-    const ext = path.extname(file.originalname || '').toLowerCase()
+    const originalName = file.name || file.originalname || ''
+    const ext = path.extname(originalName).toLowerCase()
     const isJpegMime = mime === 'image/jpeg' || mime === 'image/jpg'
     const isJpegExt = ext === '.jpg' || ext === '.jpeg'
-    const buf = file.buffer
     const hasJpegMagicBytes = buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
 
     if (!isJpegMime || !isJpegExt || !hasJpegMagicBytes) {
@@ -716,8 +717,12 @@ export async function saveCustomerPickupImage(customerId, file) {
     const safeFilename = `pickup-${safeCustomerId}-${crypto.randomUUID()}.jpg`
     const destPath = path.join(uploadsDir, safeFilename)
 
-    // Write new image file to server filesystem
-    await fs.promises.writeFile(destPath, buf)
+    // Save image file to server filesystem (use express-fileupload's mv if available, otherwise writeFile)
+    if (typeof file.mv === 'function') {
+        await file.mv(destPath)
+    } else {
+        await fs.promises.writeFile(destPath, buf)
+    }
 
     // Remove previous image file if the customer already had one (up to one image per customer)
     const oldFilename = customer.pickupImageFilename || (customer.pickupImage ? path.basename(customer.pickupImage) : null)
