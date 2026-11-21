@@ -44,3 +44,19 @@ td {
 .form-actions {
     margin-top: 12px;
 }
+
+.success-message {
+    color: green;
+}
+
+.pickup-image-container {
+    margin: 12px 0;
+}
+
+.pickup-image {
+    max-width: 320px;
+    max-height: 240px;
+    border: 1px solid #ccc;
+    display: block;
+    margin-top: 6px;
+}

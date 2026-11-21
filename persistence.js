@@ -253,3 +253,24 @@ export async function updateSessionExpiry(sessionKey, newExpiry) {
         { $set: { expiry: newExpiry } }
     );
 }
+
+/**
+ * Updates a customer's pickup-location image location information in MongoDB.
+ * @param {string|ObjectId} customerId - The customer's MongoDB _id.
+ * @param {string} imagePath - The relative URL path to locate the uploaded image (e.g. /uploads/<filename>.jpg).
+ * @param {string} imageFilename - The server-managed filename stored on the filesystem.
+ * @returns {Promise<boolean>} True if the customer record was found and updated.
+ */
+export async function updateCustomerPickupImage(customerId, imagePath, imageFilename) {
+    const database = await getDatabase();
+    const result = await database.collection('customers').updateOne(
+        { _id: toObjectId(customerId) },
+        {
+            $set: {
+                pickupImage: imagePath,
+                pickupImageFilename: imageFilename
+            }
+        }
+    );
+    return result.matchedCount > 0;
+}

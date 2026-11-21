@@ -660,3 +660,82 @@ export async function sendInvoiceEmail(orderId, pdfPath = null) {
     }
     return info
 }
+
+export const MAX_PICKUP_IMAGE_SIZE = 2 * 1024 * 1024 // 2 MB
+
+/**
+ * Validate and save a customer's pickup-location JPG image to the server filesystem
+ * and store its location metadata on the customer's MongoDB document.
+ * Enforces:
+ * - Authenticated customer exists
+ * - Up to 1 pickup-location image per customer (replaces any previous image)
+ * - Only JPG image files accepted (MIME type, extension, and JPEG magic bytes)
+ * - Maximum file size of 2 MB
+ * - Server-managed filename using UUID to prevent collisions and path traversal
+ *
+ * @param {string|object} customerId - The customer's MongoDB _id.
+ * @param {{buffer: Buffer, mimetype: string, originalname: string, size: number}} file - The uploaded file object.
+ * @returns {Promise<{success: boolean, error?: string, pickupImage?: string, filename?: string}>}
+ */
+export async function saveCustomerPickupImage(customerId, file) {
+    if (!customerId) {
+        return { success: false, error: 'Customer authentication is required.' }
+    }
+
+    const customer = await persistence.getCustomerById(customerId)
+    if (!customer) {
+        return { success: false, error: 'Customer record not found.' }
+    }
+
+    if (!file || !file.buffer || file.buffer.length === 0) {
+        return { success: false, error: 'Please select a JPG image file to upload.' }
+    }
+
+    // Enforce maximum file size of 2 MB
+    if (file.size > MAX_PICKUP_IMAGE_SIZE || file.buffer.length > MAX_PICKUP_IMAGE_SIZE) {
+        return { success: false, error: 'File size exceeds the maximum limit of 2 MB.' }
+    }
+
+    // Enforce JPG only: check MIME type, file extension, and JPEG magic bytes (FF D8 FF)
+    const mime = (file.mimetype || '').toLowerCase()
+    const ext = path.extname(file.originalname || '').toLowerCase()
+    const isJpegMime = mime === 'image/jpeg' || mime === 'image/jpg'
+    const isJpegExt = ext === '.jpg' || ext === '.jpeg'
+    const buf = file.buffer
+    const hasJpegMagicBytes = buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+
+    if (!isJpegMime || !isJpegExt || !hasJpegMagicBytes) {
+        return { success: false, error: 'Only JPG (.jpg / .jpeg) image files are accepted.' }
+    }
+
+    const uploadsDir = path.join(__dirname, 'public', 'uploads')
+    await fs.promises.mkdir(uploadsDir, { recursive: true })
+
+    // Server-managed filename to prevent collisions and unsafe paths
+    const safeCustomerId = String(customer._id).replace(/[^a-fA-F0-9]/g, '')
+    const safeFilename = `pickup-${safeCustomerId}-${crypto.randomUUID()}.jpg`
+    const destPath = path.join(uploadsDir, safeFilename)
+
+    // Write new image file to server filesystem
+    await fs.promises.writeFile(destPath, buf)
+
+    // Remove previous image file if the customer already had one (up to one image per customer)
+    const oldFilename = customer.pickupImageFilename || (customer.pickupImage ? path.basename(customer.pickupImage) : null)
+    if (oldFilename && oldFilename !== safeFilename) {
+        const safeOldPath = path.join(uploadsDir, path.basename(oldFilename))
+        try {
+            await fs.promises.unlink(safeOldPath)
+        } catch {
+            // Ignore if old file no longer exists on disk
+        }
+    }
+
+    const imageLocation = `/uploads/${safeFilename}`
+    await persistence.updateCustomerPickupImage(customer._id, imageLocation, safeFilename)
+
+    return {
+        success: true,
+        pickupImage: imageLocation,
+        filename: safeFilename
+    }
+}

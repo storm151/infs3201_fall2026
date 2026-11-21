@@ -3,6 +3,7 @@ import { engine } from 'express-handlebars';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 import * as business from './business.js';
 
 dotenv.config({ path: ['.env'] });
@@ -87,6 +88,41 @@ function requireStaff(req, res, next) {
 }
 
 /**
+ * Middleware to protect customer-only routes.
+ * Blocks unauthenticated users and logged-in staff.
+ */
+function requireCustomer(req, res, next) {
+    if (!req.session) {
+        return res.redirect('/login');
+    }
+    if (req.session.userType !== 'customer') {
+        return res.status(403).send('Access Denied: Customers only.');
+    }
+    next();
+}
+
+/**
+ * Multer configuration for pickup-location image upload:
+ * - Enforces maximum file size of 2 MB
+ * - Accepts only JPG (.jpg / .jpeg) files
+ */
+const pickupImageUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: business.MAX_PICKUP_IMAGE_SIZE,
+        files: 1
+    },
+    fileFilter: (req, file, cb) => {
+        const mime = (file.mimetype || '').toLowerCase();
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        if ((mime === 'image/jpeg' || mime === 'image/jpg') && (ext === '.jpg' || ext === '.jpeg')) {
+            return cb(null, true);
+        }
+        cb(new Error('Only JPG (.jpg / .jpeg) image files are accepted.'));
+    }
+});
+
+/**
  * Helper to fetch all orders and enrich them with customer names and formatted dates.
  */
 async function getEnrichedOrders() {
@@ -169,7 +205,8 @@ app.get('/dashboard', async (req, res, next) => {
                 userType: session.userType,
                 user: session.data,
                 customer: customer,
-                orders: customer?.orders || []
+                orders: customer?.orders || [],
+                uploadSuccess: req.query.uploaded === '1' ? 'Pickup location image uploaded successfully.' : null
             });
         }
 
@@ -190,6 +227,52 @@ app.get('/dashboard', async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+});
+
+/**
+ * Route POST /upload-pickup-image (Authenticated Customer Pickup-Location Image Upload)
+ * Accepts a single JPG image up to 2 MB, stores it on the server filesystem with a
+ * server-managed filename, and updates the customer's record in MongoDB.
+ */
+app.post('/upload-pickup-image', requireCustomer, (req, res, next) => {
+    const singleUpload = pickupImageUpload.single('pickupImage');
+    singleUpload(req, res, async (uploadErr) => {
+        try {
+            const customerId = req.session.data.userId;
+
+            if (uploadErr) {
+                const errorMessage = uploadErr.code === 'LIMIT_FILE_SIZE'
+                    ? 'File size exceeds the maximum limit of 2 MB.'
+                    : (uploadErr.message || 'Invalid image upload.');
+                const customer = await business.getCustomerInformationById(customerId);
+                return res.status(400).render('dashboard', {
+                    isCustomer: true,
+                    userType: req.session.userType,
+                    user: req.session.data,
+                    customer: customer,
+                    orders: customer?.orders || [],
+                    uploadError: errorMessage
+                });
+            }
+
+            const result = await business.saveCustomerPickupImage(customerId, req.file);
+            if (!result.success) {
+                const customer = await business.getCustomerInformationById(customerId);
+                return res.status(400).render('dashboard', {
+                    isCustomer: true,
+                    userType: req.session.userType,
+                    user: req.session.data,
+                    customer: customer,
+                    orders: customer?.orders || [],
+                    uploadError: result.error
+                });
+            }
+
+            res.redirect('/dashboard?uploaded=1');
+        } catch (err) {
+            next(err);
+        }
+    });
 });
 
 /**

@@ -16,7 +16,14 @@
 {{#if customer}}
 <div class="search-results">
     <h2>Search results</h2>
-    <p><strong>Name: {{customer.name}}</strong> Orders:</p>
+    <p><strong>Name: {{customer.name}}</strong></p>
+    {{#if customer.pickupImage}}
+    <div class="pickup-image-container">
+        <p><strong>Pickup Location Image:</strong></p>
+        <img src="{{customer.pickupImage}}" alt="Customer Pickup Location" class="pickup-image">
+    </div>
+    {{/if}}
+    <p><strong>Orders:</strong></p>
 
     <ul>
         {{#each customer.orders}}

@@ -2,6 +2,33 @@
 <h1>Customer Dashboard</h1>
 <p>Welcome, <strong>{{user.name}}</strong></p>
 
+<h2>Pickup Location Image</h2>
+{{#if uploadError}}
+<p class="error-message">{{uploadError}}</p>
+{{/if}}
+{{#if uploadSuccess}}
+<p class="success-message">{{uploadSuccess}}</p>
+{{/if}}
+
+{{#if customer.pickupImage}}
+<div class="pickup-image-container">
+    <p>Current Pickup Location Image:</p>
+    <img src="{{customer.pickupImage}}" alt="Pickup Location" class="pickup-image">
+</div>
+{{else}}
+<p>No pickup-location image uploaded yet.</p>
+{{/if}}
+
+<form action="/upload-pickup-image" method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="pickupImage">{{#if customer.pickupImage}}Replace{{else}}Upload{{/if}} Pickup Location Image (JPG only, max 2 MB):</label>
+        <input type="file" id="pickupImage" name="pickupImage" accept=".jpg,.jpeg,image/jpeg" required>
+    </div>
+    <div class="form-actions">
+        <button type="submit">Upload Image</button>
+    </div>
+</form>
+
 <h2>Your Orders</h2>
 {{#if orders.length}}
 <table>
