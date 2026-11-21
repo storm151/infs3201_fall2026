@@ -218,6 +218,26 @@ app.get('/dashboard', async (req, res, next) => {
 });
 
 /**
+ * Route GET /uploads/:filename (Protected Pickup-Location Image Access)
+ * Enforces authentication and authorization:
+ * - Unauthenticated users are blocked (401).
+ * - Authenticated customers can only view their own pickup-location image (403 otherwise).
+ * - Authenticated staff can view customer pickup-location images.
+ */
+app.get('/uploads/:filename', async (req, res, next) => {
+    try {
+        const result = await business.getAuthorizedPickupImagePath(req.session, req.params.filename);
+        if (!result.authorized) {
+            return res.status(result.status).send(result.message);
+        }
+        res.type('image/jpeg');
+        res.sendFile(result.filePath);
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
  * Route POST /upload-pickup-image (Authenticated Customer Pickup-Location Image Upload)
  * Accepts a single JPG image up to 2 MB via express-fileupload, stores it on the server
  * filesystem with a server-managed filename, and updates the customer's record in MongoDB.

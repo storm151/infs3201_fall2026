@@ -709,7 +709,8 @@ export async function saveCustomerPickupImage(customerId, file) {
         return { success: false, error: 'Only JPG (.jpg / .jpeg) image files are accepted.' }
     }
 
-    const uploadsDir = path.join(__dirname, 'public', 'uploads')
+    // Store uploaded images in a private server directory outside public/
+    const uploadsDir = path.join(__dirname, 'uploads')
     await fs.promises.mkdir(uploadsDir, { recursive: true })
 
     // Server-managed filename to prevent collisions and unsafe paths
@@ -727,11 +728,13 @@ export async function saveCustomerPickupImage(customerId, file) {
     // Remove previous image file if the customer already had one (up to one image per customer)
     const oldFilename = customer.pickupImageFilename || (customer.pickupImage ? path.basename(customer.pickupImage) : null)
     if (oldFilename && oldFilename !== safeFilename) {
-        const safeOldPath = path.join(uploadsDir, path.basename(oldFilename))
-        try {
-            await fs.promises.unlink(safeOldPath)
-        } catch {
-            // Ignore if old file no longer exists on disk
+        for (const dir of [uploadsDir, path.join(__dirname, 'public', 'uploads')]) {
+            const safeOldPath = path.join(dir, path.basename(oldFilename))
+            try {
+                await fs.promises.unlink(safeOldPath)
+            } catch {
+                // Ignore if old file no longer exists on disk
+            }
         }
     }
 
@@ -742,5 +745,69 @@ export async function saveCustomerPickupImage(customerId, file) {
         success: true,
         pickupImage: imageLocation,
         filename: safeFilename
+    }
+}
+
+/**
+ * Authorize and resolve the filesystem path for a pickup-location image filename.
+ * Enforces:
+ * - Unauthenticated users cannot access any uploaded images.
+ * - Authenticated customers can only view their own pickup-location image.
+ * - Authenticated staff can view customer pickup-location images.
+ *
+ * @param {object|null} session - The active user session (req.session).
+ * @param {string} requestedFilename - The requested image filename.
+ * @returns {Promise<{authorized: boolean, status: number, message?: string, filePath?: string}>}
+ */
+export async function getAuthorizedPickupImagePath(session, requestedFilename) {
+    if (!session || !session.userType || !session.data) {
+        return {
+            authorized: false,
+            status: 401,
+            message: 'Access Denied: You must be logged in to view pickup-location images.'
+        }
+    }
+
+    const safeFilename = path.basename(requestedFilename || '')
+    if (!safeFilename || safeFilename !== requestedFilename || path.extname(safeFilename).toLowerCase() !== '.jpg') {
+        return {
+            authorized: false,
+            status: 400,
+            message: 'Invalid image filename.'
+        }
+    }
+
+    if (session.userType === 'customer') {
+        const customer = await persistence.getCustomerById(session.data.userId)
+        const ownFilename = customer?.pickupImageFilename || (customer?.pickupImage ? path.basename(customer.pickupImage) : null)
+        if (!customer || ownFilename !== safeFilename) {
+            return {
+                authorized: false,
+                status: 403,
+                message: 'Access Denied: Customers may only view their own pickup-location image.'
+            }
+        }
+    } else if (session.userType !== 'staff') {
+        return {
+            authorized: false,
+            status: 403,
+            message: 'Access Denied: Insufficient permissions.'
+        }
+    }
+
+    const privatePath = path.join(__dirname, 'uploads', safeFilename)
+    try {
+        await fs.promises.access(privatePath, fs.constants.R_OK)
+        return {
+            authorized: true,
+            status: 200,
+            filePath: privatePath
+        }
+    } catch {
+        return {
+            authorized: false,
+            status: 404,
+            message: 'Pickup-location image not found.'
+        }
     }
 }
